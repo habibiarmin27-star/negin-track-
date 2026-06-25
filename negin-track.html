@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تار و نگین | سیستم پیگیری تولید</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --sand:#F6F1E7;
+    --sand-2:#EFE7D8;
+    --ink:#211D17;
+    --ink-soft:#5A5347;
+    --teal:#1E4640;
+    --teal-2:#163530;
+    --gold:#C79A3C;
+    --gold-soft:#E8D6A4;
+    --rose:#A14B3D;
+    --rose-soft:#F1DCD6;
+    --sage:#4F7A63;
+    --sage-soft:#DCE9DF;
+    --line:#DED4BC;
+    --radius:14px;
+    --shadow:0 1px 2px rgba(33,29,23,0.06), 0 1px 0 rgba(33,29,23,0.04);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--sand);
+    color:var(--ink);
+    font-family:'Vazirmatn',Tahoma,'Segoe UI',Arial,sans-serif;
+    min-height:100vh;
+    direction:rtl;
+  }
+  .mono{font-family:'JetBrains Mono','Courier New',monospace; letter-spacing:0.2px;}
+  .app{display:flex; min-height:100vh;}
+
+  /* Nav rail */
+  .nav{
+    width:230px;
+    background:var(--teal);
+    color:#F2EEE2;
+    display:flex;
+    flex-direction:column;
+    padding:22px 14px;
+    flex-shrink:0;
+  }
+  .nav-brand{
+    display:flex; align-items:center; gap:10px;
+    margin-bottom:26px; padding:0 6px;
+  }
+  .nav-brand .dot{
+    width:12px;height:12px;border-radius:50%;
+    background:var(--gold);
+    box-shadow:0 0 0 4px rgba(199,154,60,0.18);
+    flex-shrink:0;
+  }
+  .nav-brand b{font-size:16px; font-weight:800; letter-spacing:0.2px;}
+  .nav-brand span{display:block; font-size:11px; color:#B9C9C2; margin-top:1px;}
+  .nav-section-label{
+    font-size:11px; color:#92A8A0; margin:14px 8px 6px; font-weight:600;
+  }
+  .nav-item{
+    display:flex; align-items:center; gap:10px;
+    padding:10px 12px; border-radius:10px;
+    color:#E7E1D2; font-size:14px; font-weight:500;
+    cursor:pointer; user-select:none;
+    margin-bottom:2px;
+    transition:background .15s ease;
+  }
+  .nav-item:hover{background:rgba(255,255,255,0.06);}
+  .nav-item.active{background:rgba(199,154,60,0.16); color:#fff;}
+  .nav-item.active .nav-ico{color:var(--gold);}
+  .nav-ico{width:18px; text-align:center; flex-shrink:0;}
+  .nav-foot{margin-top:auto; padding:10px 8px; font-size:11px; color:#7E938C;}
+
+  /* Mobile bottom nav */
+  .mnav{display:none;}
+
+  /* Main */
+  .main{flex:1; min-width:0; padding:26px 30px 90px; max-width:1180px;}
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:16px; margin-bottom:22px; flex-wrap:wrap;
+  }
+  .topbar h1{font-size:21px; font-weight:800; margin:0;}
+  .topbar p{margin:4px 0 0; color:var(--ink-soft); font-size:13px;}
+  .search-box{
+    display:flex; align-items:center; gap:8px;
+    background:#fff; border:1px solid var(--line); border-radius:10px;
+    padding:9px 12px; min-width:240px;
+  }
+  .search-box input{
+    border:none; outline:none; background:transparent; font-family:inherit;
+    font-size:13px; width:100%; direction:rtl;
+  }
+  .search-box .go{
+    background:var(--teal); color:#fff; border:none; border-radius:8px;
+    padding:6px 12px; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit;
+  }
+
+  /* Cards */
+  .card{
+    background:#fff; border:1px solid var(--line); border-radius:var(--radius);
+    box-shadow:var(--shadow); padding:18px 20px; margin-bottom:18px;
+  }
+  .stat-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:18px;}
+  .stat-card{
+    background:#fff; border:1px solid var(--line); border-radius:var(--radius);
+    padding:16px 18px; box-shadow:var(--shadow);
+  }
+  .stat-card .num{font-family:'JetBrains Mono',monospace; font-size:26px; font-weight:700; color:var(--teal);}
+  .stat-card.warn .num{color:var(--rose);}
+  .stat-card .lbl{font-size:12px; color:var(--ink-soft); margin-top:4px;}
+
+  h2.sec-title{font-size:15px; font-weight:700; margin:0 0 12px; display:flex; align-items:center; gap:8px;}
+  h2.sec-title .bar{width:4px; height:16px; background:var(--gold); border-radius:3px; display:inline-block;}
+
+  /* Journey strip */
+  .journey{display:flex; align-items:center; gap:0; flex-wrap:wrap; margin:10px 0;}
+  .j-node{display:flex; flex-direction:column; align-items:center; position:relative; min-width:74px;}
+  .j-dot{
+    width:26px; height:26px; border-radius:50%; border:2px solid var(--line);
+    display:flex; align-items:center; justify-content:center; background:#fff;
+    font-size:11px; font-weight:700; color:var(--ink-soft); z-index:2;
+  }
+  .j-dot.done{background:var(--teal); border-color:var(--teal); color:#fff;}
+  .j-dot.current{background:var(--gold); border-color:var(--gold); color:#fff; box-shadow:0 0 0 4px rgba(199,154,60,0.22);}
+  .j-dot.rejected{background:var(--rose); border-color:var(--rose); color:#fff;}
+  .j-label{font-size:10.5px; color:var(--ink-soft); margin-top:6px; text-align:center; max-width:80px; line-height:1.3;}
+  .j-line{height:2px; background:var(--line); flex:1; min-width:18px; margin-top:13px;}
+  .j-line.done{background:var(--teal);}
+  .j-round-badge{
+    position:absolute; top:-10px; left:50%; transform:translateX(-50%);
+    background:var(--rose); color:#fff; font-size:9px; padding:1px 5px;
+    border-radius:6px; font-weight:700; white-space:nowrap;
+  }
+
+  /* Status badges */
+  .badge{display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:20px; font-size:11.5px; font-weight:600;}
+  .badge.b-progress{background:var(--gold-soft); color:#8A6A1F;}
+  .badge.b-rejected{background:var(--rose-soft); color:var(--rose);}
+  .badge.b-done{background:var(--sage-soft); color:var(--sage);}
+  .badge.b-wait{background:#EFEAF1; color:#6B5E78;}
+
+  /* Tables */
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th{text-align:right; color:var(--ink-soft); font-weight:600; font-size:11.5px; padding:8px 10px; border-bottom:1px solid var(--line);}
+  td{padding:9px 10px; border-bottom:1px solid #EFE9D9; vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  .row-item{display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid #EFE9D9; gap:14px; flex-wrap:wrap;}
+  .row-item:last-child{border-bottom:none;}
+  .barcode-chip{
+    font-family:'JetBrains Mono',monospace; background:var(--sand-2); border:1px solid var(--line);
+    border-radius:8px; padding:3px 9px; font-size:12.5px; font-weight:600; color:var(--teal-2);
+  }
+  .link-btn{
+    background:none; border:1px solid var(--teal); color:var(--teal);
+    border-radius:8px; padding:6px 12px; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit;
+  }
+  .link-btn:hover{background:var(--teal); color:#fff;}
+  .empty-state{text-align:center; padding:30px 10px; color:var(--ink-soft); font-size:13px;}
+
+  /* Forms */
+  .form-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+  .form-grid.full{grid-template-columns:1fr;}
+  .field{margin-bottom:14px;}
+  .field label{display:block; font-size:12.5px; font-weight:600; color:var(--ink-soft); margin-bottom:6px;}
+  .field input, .field select, .field textarea{
+    width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:9px;
+    font-family:inherit; font-size:13.5px; background:#fff; color:var(--ink); direction:rtl;
+  }
+  .field input.mono-field{font-family:'JetBrains Mono',monospace; direction:ltr; text-align:right;}
+  .field input:focus, .field select:focus, .field textarea:focus{
+    outline:none; border-color:var(--gold); box-shadow:0 0 0 3px rgba(199,154,60,0.18);
+  }
+  .field .hint{font-size:11.5px; color:var(--ink-soft); margin-top:5px;}
+  .field .hint.alert{color:var(--rose); font-weight:600;}
+  .add-inline{display:flex; gap:8px; margin-top:8px;}
+  .add-inline input{flex:1;}
+  .add-inline button{
+    background:var(--sand-2); border:1px dashed var(--line); border-radius:9px;
+    padding:9px 12px; font-size:12px; cursor:pointer; font-family:inherit; color:var(--teal-2); font-weight:600;
+  }
+  .btn-primary{
+    background:var(--teal); color:#fff; border:none; border-radius:10px;
+    padding:11px 22px; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit;
+  }
+  .btn-primary:hover{background:var(--teal-2);}
+  .btn-primary:disabled{opacity:0.5; cursor:not-allowed;}
+  .form-actions{display:flex; align-items:center; gap:12px; margin-top:6px;}
+  .lookup-box{
+    background:var(--sand-2); border:1px solid var(--line); border-radius:10px;
+    padding:12px 14px; margin-bottom:16px; font-size:12.5px; color:var(--ink-soft);
+  }
+  .lookup-box b{color:var(--ink);}
+
+  .toast{
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(0);
+    background:var(--teal); color:#fff; padding:12px 22px; border-radius:10px;
+    font-size:13.5px; font-weight:600; box-shadow:0 6px 20px rgba(0,0,0,0.18);
+    z-index:50; opacity:0; transition:opacity .25s ease, transform .25s ease;
+    pointer-events:none;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(-6px);}
+  .toast.error{background:var(--rose);}
+
+  .stage-pill{
+    display:inline-block; font-size:11px; font-weight:700; padding:3px 10px;
+    border-radius:20px; background:var(--sand-2); color:var(--teal-2); margin-left:6px;
+  }
+
+  @media (max-width: 880px){
+    .app{flex-direction:column;}
+    .nav{display:none;}
+    .mnav{
+      display:flex; position:fixed; bottom:0; right:0; left:0; background:var(--teal);
+      padding:6px 4px; z-index:40; box-shadow:0 -2px 10px rgba(0,0,0,0.15);
+      overflow-x:auto;
+    }
+    .mnav-item{
+      flex:1; min-width:64px; display:flex; flex-direction:column; align-items:center;
+      gap:2px; padding:8px 4px; color:#CBD8D2; font-size:10px; cursor:pointer; white-space:nowrap;
+    }
+    .mnav-item.active{color:var(--gold);}
+    .main{padding:18px 14px 90px; max-width:100%;}
+    .stat-grid{grid-template-columns:repeat(2,1fr);}
+    .form-grid{grid-template-columns:1fr;}
+    .topbar{flex-direction:column; align-items:stretch;}
+    .search-box{min-width:0;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="nav" id="nav"></nav>
+  <main class="main" id="main"></main>
+</div>
+<nav class="mnav" id="mnav"></nav>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+/* ============================ FIREBASE SETUP ============================ */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAgrG61bTmTLgyh1SWmMfVDD2WsH1DBdp4",
+  authDomain: "negin-track.firebaseapp.com",
+  projectId: "negin-track",
+  storageBucket: "negin-track.firebasestorage.app",
+  messagingSenderId: "522256889508",
+  appId: "1:522256889508:web:52cedcea45469159809831",
+  measurementId: "G-5Y8M5WHGVG"
+};
+const fbApp = initializeApp(firebaseConfig);
+const db = getFirestore(fbApp);
+const COLLECTION = 'appdata';
+
+/* ============================ DATA LAYER ============================ */
+const KEYS = {
+  receiving: 'receiving-log',
+  events: 'events',
+  neginkars: 'negin-kars',
+  shops: 'shops'
+};
+
+let DB = { receiving: [], events: [], neginkars: [], shops: [] };
+
+function uid(){ return 'x' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+
+async function storageGet(key, fallback){
+  try{
+    const snap = await getDoc(doc(db, COLLECTION, key));
+    if(!snap.exists()) return fallback;
+    const data = snap.data();
+    return (data && data.value!==undefined) ? data.value : fallback;
+  }catch(e){
+    console.error('storage get failed', key, e);
+    return fallback;
+  }
+}
+async function storageSet(key, value){
+  try{
+    await setDoc(doc(db, COLLECTION, key), { value: value, updatedAt: Date.now() });
+    return true;
+  }catch(e){
+    console.error('storage set failed', key, e);
+    return false;
+  }
+}
+
+async function loadAll(){
+  const [receiving, events, neginkars, shops] = await Promise.all([
+    storageGet(KEYS.receiving, []),
+    storageGet(KEYS.events, []),
+    storageGet(KEYS.neginkars, []),
+    storageGet(KEYS.shops, [])
+  ]);
+  DB.receiving = receiving;
+  DB.events = events;
+  DB.neginkars = neginkars;
+  DB.shops = shops;
+}
+
+async function addReceiving(rec){
+  DB.receiving = [...DB.receiving, rec];
+  return storageSet(KEYS.receiving, DB.receiving);
+}
+async function addEvent(ev){
+  DB.events = [...DB.events, ev];
+  return storageSet(KEYS.events, DB.events);
+}
+async function addNeginkar(name){
+  if(!DB.neginkars.includes(name)){
+    DB.neginkars = [...DB.neginkars, name];
+    await storageSet(KEYS.neginkars, DB.neginkars);
+  }
+}
+async function addShop(name){
+  if(!DB.shops.includes(name)){
+    DB.shops = [...DB.shops, name];
+    await storageSet(KEYS.shops, DB.shops);
+  }
+}
+
+/* ============================ DOMAIN LOGIC ============================ */
+const STAGE_LABELS = {
+  send_neginkar: 'ارسال به نگین‌کار',
+  return_neginkar: 'برگشت از نگین‌کار',
+  qc: 'کنترل کیفیت',
+  send_shop: 'ارسال به مغازه',
+  receive_shop: 'دریافت در مغازه'
+};
+
+function eventsFor(barcode){
+  return DB.events.filter(e => e.barcode === barcode).sort((a,b)=> a.createdAt - b.createdAt);
+}
+
+function allBarcodes(){
+  const set = new Set(DB.events.map(e=>e.barcode));
+  return Array.from(set);
+}
+
+function maxRound(barcode){
+  const sends = DB.events.filter(e=> e.barcode===barcode && e.stage==='send_neginkar');
+  return sends.length ? Math.max(...sends.map(e=>e.round)) : 0;
+}
+
+function nextRound(barcode){
+  return maxRound(barcode) + 1;
+}
+
+function getItemSummary(barcode){
+  const evs = eventsFor(barcode);
+  const r = maxRound(barcode) || 1;
+  const send = evs.find(e=> e.stage==='send_neginkar' && e.round===r);
+  const ret = evs.find(e=> e.stage==='return_neginkar' && e.round===r);
+  const qc = evs.find(e=> e.stage==='qc' && e.round===r);
+  const sendShop = evs.find(e=> e.stage==='send_shop');
+  const recvShop = evs.find(e=> e.stage==='receive_shop');
+
+  let status='', statusType='progress', currentStageKey='send_neginkar';
+  const discrepancies = [];
+
+  // discrepancy checks across all rounds
+  for(let rr=1; rr<=r; rr++){
+    const s = evs.find(e=>e.stage==='send_neginkar' && e.round===rr);
+    const rt = evs.find(e=>e.stage==='return_neginkar' && e.round===rr);
+    if(s && rt && Number(rt.quantity) !== Number(s.quantity)){
+      discrepancies.push(`دور ${rr}: ${s.quantity} ارسال شد، ${rt.quantity} برگشت (کسری ${s.quantity-rt.quantity})`);
+    }
+    const q = evs.find(e=>e.stage==='qc' && e.round===rr);
+    if(rt && q){
+      const sum = Number(q.approvedQty||0) + Number(q.rejectedQty||0);
+      if(sum !== Number(rt.quantity)){
+        discrepancies.push(`دور ${rr}: نتیجه QC (${sum}) با تعداد برگشتی (${rt.quantity}) همخوانی ندارد`);
+      }
+    }
+  }
+  if(sendShop && recvShop && Number(recvShop.quantity) !== Number(sendShop.quantity)){
+    discrepancies.push(`ارسال به مغازه ${sendShop.quantity} بود، ${recvShop.quantity} دریافت تایید شد`);
+  }
+
+  if(recvShop){
+    status = 'تکمیل شده - موجود در مغازه'; statusType='done'; currentStageKey='receive_shop';
+  } else if(sendShop){
+    status = 'ارسال شده به مغازه، منتظر تایید دریافت'; statusType='progress'; currentStageKey='send_shop';
+  } else if(qc){
+    if(qc.result === 'approved'){
+      status = 'تایید کیفیت شد، آماده ارسال به مغازه'; statusType='progress'; currentStageKey='qc';
+    } else {
+      status = `رد شد در دور ${r} - منتظر ارسال دوباره به نگین‌کار`; statusType='rejected'; currentStageKey='qc';
+    }
+  } else if(ret){
+    status = 'برگشته از نگین‌کار، منتظر کنترل کیفیت'; statusType='wait'; currentStageKey='return_neginkar';
+  } else if(send){
+    status = `نزد نگین‌کار «${send.neginKar}» (دور ${r})`; statusType='progress'; currentStageKey='send_neginkar';
+  } else {
+    status = 'بدون رویداد ثبت‌شده'; statusType='wait'; currentStageKey='';
+  }
+
+  return { barcode, round:r, send, ret, qc, sendShop, recvShop, status, statusType, currentStageKey, discrepancies, evs };
+}
+
+function dashboardStats(){
+  const codes = allBarcodes();
+  let inNeginkar=0, waitingQc=0, rejected=0, done=0;
+  codes.forEach(bc=>{
+    const s = getItemSummary(bc);
+    if(s.currentStageKey==='send_neginkar') inNeginkar++;
+    else if(s.currentStageKey==='return_neginkar') waitingQc++;
+    else if(s.statusType==='rejected') rejected++;
+    else if(s.currentStageKey==='receive_shop') done++;
+  });
+  return { total: codes.length, inNeginkar, waitingQc, rejected, done };
+}
+
+function needsAttention(){
+  return allBarcodes().map(getItemSummary).filter(s => s.statusType==='rejected' || s.discrepancies.length>0 || s.currentStageKey==='return_neginkar');
+}
+
+/* ============================ UI STATE / ROUTER ============================ */
+const ROUTES = [
+  { key:'dashboard', label:'داشبورد', ico:'◧', group:'main' },
+  { key:'lookup', label:'پیگیری بارکد', ico:'⌕', group:'main' },
+  { key:'receiving', label:'دریافت از کارخونه', ico:'①', group:'forms' },
+  { key:'send_neginkar', label:'ارسال به نگین‌کار', ico:'②', group:'forms' },
+  { key:'return_neginkar', label:'برگشت از نگین‌کار', ico:'③', group:'forms' },
+  { key:'qc', label:'کنترل کیفیت', ico:'④', group:'forms' },
+  { key:'send_shop', label:'ارسال به مغازه', ico:'⑤', group:'forms' },
+  { key:'receive_shop', label:'دریافت در مغازه', ico:'⑥', group:'forms' },
+];
+
+let state = { view:'dashboard', lookupBarcode:'' };
+
+function showToast(msg, isError){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isError? ' error':'');
+  setTimeout(()=>{ t.className='toast'; }, 2600);
+}
+
+function fmtDate(iso){
+  if(!iso) return '—';
+  try{
+    const d = new Date(iso);
+    return d.toLocaleDateString('fa-IR');
+  }catch(e){ return iso; }
+}
+
+function navigate(view){
+  state.view = view;
+  render();
+  window.scrollTo(0,0);
+}
+
+/* ============================ RENDER: NAV ============================ */
+function renderNav(){
+  const nav = document.getElementById('nav');
+  const groups = { main: ROUTES.filter(r=>r.group==='main'), forms: ROUTES.filter(r=>r.group==='forms') };
+  nav.innerHTML = `
+    <div class="nav-brand">
+      <span class="dot"></span>
+      <div><b>تار و نگین</b><span>پیگیری تولید</span></div>
+    </div>
+    <div class="nav-section-label">نمای کلی</div>
+    ${groups.main.map(navItemHtml).join('')}
+    <div class="nav-section-label">ثبت اطلاعات هر مرحله</div>
+    ${groups.forms.map(navItemHtml).join('')}
+    <div class="nav-foot">فقط برای اعضای تیم — این لینک را با دیگران به اشتراک نگذارید.</div>
+  `;
+  nav.querySelectorAll('.nav-item').forEach(el=>{
+    el.addEventListener('click', ()=> navigate(el.dataset.view));
+  });
+
+  const mnav = document.getElementById('mnav');
+  mnav.innerHTML = ROUTES.map(r=> `
+    <div class="mnav-item ${state.view===r.key?'active':''}" data-view="${r.key}">
+      <span>${r.ico}</span><span>${r.label}</span>
+    </div>`).join('');
+  mnav.querySelectorAll('.mnav-item').forEach(el=>{
+    el.addEventListener('click', ()=> navigate(el.dataset.view));
+  });
+}
+function navItemHtml(r){
+  return `<div class="nav-item ${state.view===r.key?'active':''}" data-view="${r.key}">
+    <span class="nav-ico">${r.ico}</span><span>${r.label}</span>
+  </div>`;
+}
+
+/* ============================ RENDER: JOURNEY STRIP ============================ */
+function journeyStripHtml(summary){
+  const stages = [
+    {key:'send_neginkar', label:'ارسال نگین‌کار'},
+    {key:'return_neginkar', label:'برگشت نگین‌کار'},
+    {key:'qc', label:'کنترل کیفیت'},
+    {key:'send_shop', label:'ارسال مغازه'},
+    {key:'receive_shop', label:'دریافت مغازه'},
+  ];
+  const order = stages.map(s=>s.key);
+  const currentIdx = order.indexOf(summary.currentStageKey);
+  let nodes = '';
+  stages.forEach((s, i)=>{
+    let cls = '';
+    let dotContent = (i+1);
+    if(i < currentIdx) cls = 'done';
+    else if(i === currentIdx) cls = summary.statusType==='rejected' ? 'rejected' : 'current';
+    const badge = (s.key==='send_neginkar' && summary.round>1) ? `<span class="j-round-badge">دور ${summary.round}</span>` : '';
+    nodes += `<div class="j-node">${badge}<div class="j-dot ${cls}">${dotContent}</div><div class="j-label">${s.label}</div></div>`;
+    if(i < stages.length-1){
+      nodes += `<div class="j-line ${i < currentIdx ? 'done':''}"></div>`;
+    }
+  });
+  return `<div class="journey">${nodes}</div>`;
+}
+
+/* ============================ RENDER: DASHBOARD ============================ */
+function renderDashboard(){
+  const stats = dashboardStats();
+  const attn = needsAttention();
+  const recent = [...DB.events].sort((a,b)=> b.createdAt - a.createdAt).slice(0,8);
+
+  return `
+    <div class="topbar">
+      <div>
+        <h1>داشبورد تولید</h1>
+        <p>وضعیت کلی جنس‌ها از انبار تا مغازه</p>
+      </div>
+      ${quickSearchHtml()}
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat-card"><div class="num mono">${stats.total}</div><div class="lbl">کل آیتم‌های دارای بارکد</div></div>
+      <div class="stat-card"><div class="num mono">${stats.inNeginkar}</div><div class="lbl">نزد نگین‌کار</div></div>
+      <div class="stat-card warn"><div class="num mono">${stats.rejected}</div><div class="lbl">رد شده / منتظر اصلاح</div></div>
+      <div class="stat-card"><div class="num mono">${stats.done}</div><div class="lbl">تکمیل شده در مغازه</div></div>
+    </div>
+
+    <div class="card">
+      <h2 class="sec-title"><span class="bar"></span>موارد نیازمند توجه</h2>
+      ${attn.length===0 ? `<div class="empty-state">چیزی نیاز به پیگیری فوری ندارد ✓</div>` :
+        attn.map(s=>`
+          <div class="row-item">
+            <div>
+              <span class="barcode-chip mono">${s.barcode}</span>
+              <span class="badge b-${s.statusType==='rejected'?'rejected': s.statusType==='wait'?'wait':'progress'}" style="margin-right:8px;">${s.status}</span>
+              ${s.discrepancies.length ? `<div class="hint alert field" style="margin-top:6px; color:var(--rose); font-size:11.5px;">⚠ ${s.discrepancies.join(' · ')}</div>`:''}
+            </div>
+            <button class="link-btn" data-bc="${s.barcode}" onclick="navigateLookup('${s.barcode}')">پیگیری</button>
+          </div>
+        `).join('')
+      }
+    </div>
+
+    <div class="card">
+      <h2 class="sec-title"><span class="bar"></span>فعالیت‌های اخیر</h2>
+      ${recent.length===0 ? `<div class="empty-state">هنوز رویدادی ثبت نشده</div>` :
+        `<table><thead><tr><th>بارکد</th><th>مرحله</th><th>تعداد</th><th>تاریخ</th></tr></thead><tbody>
+        ${recent.map(e=>`<tr>
+          <td><span class="barcode-chip mono">${e.barcode}</span></td>
+          <td>${STAGE_LABELS[e.stage]||e.stage} ${e.round?`<span class="stage-pill">دور ${e.round}</span>`:''}</td>
+          <td class="mono">${e.quantity ?? '—'}</td>
+          <td>${fmtDate(e.date)}</td>
+        </tr>`).join('')}
+        </tbody></table>`
+      }
+    </div>
+  `;
+}
+
+function quickSearchHtml(){
+  return `
+    <div class="search-box">
+      <input id="quickSearch" type="text" placeholder="جست‌وجوی سریع بارکد…" value="${state.lookupBarcode||''}" class="mono">
+      <button class="go" onclick="quickSearchGo()">پیگیری</button>
+    </div>
+  `;
+}
+function quickSearchGo(){
+  const v = document.getElementById('quickSearch').value.trim();
+  navigateLookup(v);
+}
+function navigateLookup(bc){
+  state.lookupBarcode = bc;
+  state.view = 'lookup';
+  render();
+}
+
+/* ============================ RENDER: LOOKUP ============================ */
+function renderLookup(){
+  const bc = state.lookupBarcode || '';
+  const summary = bc ? getItemSummary(bc) : null;
+  return `
+    <div class="topbar">
+      <div><h1>پیگیری بارکد</h1><p>تاریخچه کامل یک آیتم را از ابتدا تا الان ببینید</p></div>
+    </div>
+    <div class="card">
+      <div class="search-box" style="max-width:420px;">
+        <input id="lookupInput" type="text" placeholder="بارکد را وارد کنید…" value="${bc}" class="mono">
+        <button class="go" onclick="doLookup()">پیگیری</button>
+      </div>
+    </div>
+    ${bc ? renderLookupResult(summary) : `<div class="card"><div class="empty-state">یک بارکد وارد کنید تا مسیر آن نمایش داده شود</div></div>`}
+  `;
+}
+function doLookup(){
+  const v = document.getElementById('lookupInput').value.trim();
+  state.lookupBarcode = v;
+  render();
+}
+function renderLookupResult(summary){
+  if(!summary || summary.evs.length===0){
+    return `<div class="card"><div class="empty-state">هیچ رویدادی برای بارکد «${summary?summary.barcode:''}» پیدا نشد</div></div>`;
+  }
+  const badgeClass = summary.statusType==='rejected' ? 'b-rejected' : summary.statusType==='done' ? 'b-done' : summary.statusType==='wait' ? 'b-wait' : 'b-progress';
+  return `
+    <div class="card">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:6px;">
+        <span class="barcode-chip mono" style="font-size:15px;">${summary.barcode}</span>
+        <span class="badge ${badgeClass}">${summary.status}</span>
+      </div>
+      ${journeyStripHtml(summary)}
+      ${summary.discrepancies.length ? `<div class="hint alert" style="margin-top:10px;">⚠ ${summary.discrepancies.join(' · ')}</div>` : ''}
+    </div>
+    <div class="card">
+      <h2 class="sec-title"><span class="bar"></span>تاریخچه رویدادها</h2>
+      <table>
+        <thead><tr><th>مرحله</th><th>تاریخ</th><th>تعداد</th><th>جزئیات</th></tr></thead>
+        <tbody>
+        ${summary.evs.map(e=>`
+          <tr>
+            <td>${STAGE_LABELS[e.stage]||e.stage} ${e.round?`<span class="stage-pill">دور ${e.round}</span>`:''}</td>
+            <td>${fmtDate(e.date)}</td>
+            <td class="mono">${e.quantity ?? (e.approvedQty!=null ? `${e.approvedQty}/${e.rejectedQty}`:'—')}</td>
+            <td>${eventDetailText(e)}</td>
+          </tr>
+        `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+function eventDetailText(e){
+  if(e.stage==='send_neginkar') return `نگین‌کار: ${e.neginKar}`;
+  if(e.stage==='qc') return e.result==='approved' ? `تایید: ${e.approvedQty} / رد: ${e.rejectedQty}` : `رد شد — ${e.defectNote||'بدون توضیح'}`;
+  if(e.stage==='send_shop') return `مغازه: ${e.shop}`;
+  if(e.note) return e.note;
+  return '—';
+}
+
+/* ============================ RENDER: RECEIVING FORM ============================ */
+function renderReceiving(){
+  const log = [...DB.receiving].sort((a,b)=>b.createdAt-a.createdAt).slice(0,10);
+  return `
+    <div class="topbar"><div><h1>دریافت از کارخونه</h1><p>ثبت جنسی که از کارخونه وارد انبار می‌شود (هنوز بارکد ندارد)</p></div></div>
+    <div class="card">
+      <form id="frmReceiving" class="form-grid">
+        <div class="field"><label>نوع / کد محصول</label><input type="text" name="productType" required></div>
+        <div class="field"><label>تعداد دریافتی</label><input type="number" name="quantity" min="1" required></div>
+        <div class="field"><label>تاریخ دریافت</label><input type="date" name="date" required></div>
+        <div class="field"><label>توضیحات (اختیاری)</label><input type="text" name="note"></div>
+      </form>
+      <div class="form-actions"><button class="btn-primary" onclick="submitReceiving()">ثبت دریافت</button></div>
+    </div>
+    <div class="card">
+      <h2 class="sec-title"><span class="bar"></span>آخرین موارد ثبت‌شده</h2>
+      ${log.length===0 ? `<div class="empty-state">هنوز چیزی ثبت نشده</div>` :
+        `<table><thead><tr><th>نوع محصول</th><th>تعداد</th><th>تاریخ</th><th>توضیحات</th></tr></thead><tbody>
+        ${log.map(r=>`<tr><td>${r.productType}</td><td class="mono">${r.quantity}</td><td>${fmtDate(r.date)}</td><td>${r.note||'—'}</td></tr>`).join('')}
+        </tbody></table>`}
+    </div>
+  `;
+}
+async function submitReceiving(){
+  const f = document.getElementById('frmReceiving');
+  const productType = f.productType.value.trim();
+  const quantity = f.quantity.value;
+  const date = f.date.value;
+  const note = f.note.value.trim();
+  if(!productType || !quantity || !date){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
+  const rec = { id:uid(), productType, quantity:Number(quantity), date, note, createdAt:Date.now() };
+  const ok = await addReceiving(rec);
+  if(ok){ showToast('دریافت با موفقیت ثبت شد'); navigate('receiving'); }
+  else showToast('خطا در ذخیره‌سازی', true);
+}
+
+/* ============================ RENDER: SEND TO NEGINKAR ============================ */
+function renderSendNeginkar(){
+  return `
+    <div class="topbar"><div><h1>ارسال به نگین‌کار</h1><p>هر بار که جنس برای نگین‌کاری ارسال می‌شود، اینجا ثبت کنید</p></div></div>
+    <div class="card">
+      <form id="frmSendNk" class="form-grid">
+        <div class="field"><label>بارکد آیتم</label><input type="text" name="barcode" class="mono-field" required></div>
+        <div class="field">
+          <label>نگین‌کار</label>
+          <select name="neginKar" id="nkSelect" required>
+            <option value="">— انتخاب کنید —</option>
+            ${DB.neginkars.map(n=>`<option value="${n}">${n}</option>`).join('')}
+          </select>
+          <div class="add-inline">
+            <input type="text" id="newNkName" placeholder="نگین‌کار جدید…">
+            <button type="button" onclick="quickAddNeginkar()">افزودن</button>
+          </div>
+        </div>
+        <div class="field"><label>تعداد ارسالی</label><input type="number" name="quantity" min="1" required></div>
+        <div class="field"><label>تاریخ ارسال</label><input type="date" name="date" required></div>
+      </form>
+      <div id="sendNkRoundHint" class="lookup-box" style="display:none;"></div>
+      <div class="form-actions"><button class="btn-primary" onclick="submitSendNeginkar()">ثبت ارسال</button></div>
+    </div>
+  `;
+}
+function quickAddNeginkar(){
+  const inp = document.getElementById('newNkName');
+  const name = inp.value.trim();
+  if(!name) return;
+  addNeginkar(name).then(()=>{ inp.value=''; render(); showToast(`«${name}» اضافه شد`); });
+}
+function bindBarcodeRoundHint(){
+  const inp = document.querySelector('#frmSendNk [name="barcode"]');
+  if(!inp) return;
+  inp.addEventListener('input', ()=>{
+    const bc = inp.value.trim();
+    const box = document.getElementById('sendNkRoundHint');
+    if(!bc){ box.style.display='none'; return; }
+    const r = nextRound(bc);
+    const existing = eventsFor(bc).length;
+    box.style.display='block';
+    if(existing===0){
+      box.innerHTML = `بارکد جدید — این اولین ارسال برای این آیتم خواهد بود (دور ۱).`;
+    } else {
+      const s = getItemSummary(bc);
+      box.innerHTML = `این بارکد قبلاً سابقه دارد. وضعیت فعلی: <b>${s.status}</b> — این ارسال به‌عنوان <b>دور ${r}</b> ثبت می‌شود.`;
+    }
+  });
+}
+async function submitSendNeginkar(){
+  const f = document.getElementById('frmSendNk');
+  const barcode = f.barcode.value.trim();
+  const neginKar = f.neginKar.value;
+  const quantity = f.quantity.value;
+  const date = f.date.value;
+  if(!barcode || !neginKar || !quantity || !date){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
+  const round = nextRound(barcode);
+  const ev = { id:uid(), barcode, stage:'send_neginkar', round, neginKar, quantity:Number(quantity), date, createdAt:Date.now() };
+  const ok = await addEvent(ev);
+  if(ok){ showToast(`ارسال دور ${round} ثبت شد`); navigate('send_neginkar'); }
+  else showToast('خطا در ذخیره‌سازی', true);
+}
+
+/* ============================ RENDER: RETURN FROM NEGINKAR ============================ */
+function renderReturnNeginkar(){
+  return `
+    <div class="topbar"><div><h1>برگشت از نگین‌کار</h1><p>وقتی جنس از نگین‌کار برمی‌گردد، تعداد را اینجا ثبت کنید</p></div></div>
+    <div class="card">
+      <form id="frmRetNk" class="form-grid">
+        <div class="field"><label>بارکد آیتم</label><input type="text" name="barcode" class="mono-field" required></div>
+        <div class="field"><label>تعداد برگشتی</label><input type="number" name="quantity" min="0" required></div>
+        <div class="field"><label>تاریخ برگشت</label><input type="date" name="date" required></div>
+      </form>
+      <div id="retNkHint" class="lookup-box" style="display:none;"></div>
+      <div class="form-actions"><button class="btn-primary" onclick="submitReturnNeginkar()">ثبت برگشت</button></div>
+    </div>
+  `;
+}
+function bindReturnHint(){
+  const inp = document.querySelector('#frmRetNk [name="barcode"]');
+  if(!inp) return;
+  const update = ()=>{
+    const bc = inp.value.trim();
+    const box = document.getElementById('retNkHint');
+    if(!bc){ box.style.display='none'; return; }
+    const r = maxRound(bc);
+    box.style.display='block';
+    if(!r){ box.innerHTML = `هیچ ارسالی برای این بارکد ثبت نشده — ابتدا باید در فرم «ارسال به نگین‌کار» ثبت شود.`; return; }
+    const send = DB.events.find(e=>e.barcode===bc && e.stage==='send_neginkar' && e.round===r);
+    box.innerHTML = `آخرین ارسال (دور ${r}): <b>${send.quantity}</b> عدد به نگین‌کار «${send.neginKar}» — این برگشت برای همین دور ثبت می‌شود.`;
+  };
+  inp.addEventListener('input', update);
+}
+async function submitReturnNeginkar(){
+  const f = document.getElementById('frmRetNk');
+  const barcode = f.barcode.value.trim();
+  const quantity = f.quantity.value;
+  const date = f.date.value;
+  if(!barcode || quantity==='' || !date){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
+  const round = maxRound(barcode);
+  if(!round){ showToast('برای این بارکد هیچ ارسالی ثبت نشده است', true); return; }
+  const ev = { id:uid(), barcode, stage:'return_neginkar', round, quantity:Number(quantity), date, createdAt:Date.now() };
+  const ok = await addEvent(ev);
+  if(ok){ showToast('برگشت ثبت شد'); navigate('return_neginkar'); }
+  else showToast('خطا در ذخیره‌سازی', true);
+}
+
+/* ============================ RENDER: QC ============================ */
+function renderQc(){
+  return `
+    <div class="topbar"><div><h1>کنترل کیفیت</h1><p>بررسی کیفیت جنس برگشتی از نگین‌کار</p></div></div>
+    <div class="card">
+      <form id="frmQc" class="form-grid">
+        <div class="field"><label>بارکد آیتم</label><input type="text" name="barcode" class="mono-field" required></div>
+        <div class="field"><label>تعداد تایید‌شده</label><input type="number" name="approvedQty" min="0" required></div>
+        <div class="field"><label>تعداد رد‌شده</label><input type="number" name="rejectedQty" min="0" required></div>
+        <div class="field"><label>توضیح ایراد (اگر رد شده)</label><input type="text" name="defectNote"></div>
+      </form>
+      <div id="qcHint" class="lookup-box" style="display:none;"></div>
+      <div class="form-actions"><button class="btn-primary" onclick="submitQc()">ثبت نتیجه</button></div>
+    </div>
+  `;
+}
+function bindQcHint(){
+  const inp = document.querySelector('#frmQc [name="barcode"]');
+  if(!inp) return;
+  const update = ()=>{
+    const bc = inp.value.trim();
+    const box = document.getElementById('qcHint');
+    if(!bc){ box.style.display='none'; return; }
+    const r = maxRound(bc);
+    box.style.display='block';
+    const ret = DB.events.find(e=>e.barcode===bc && e.stage==='return_neginkar' && e.round===r);
+    if(!ret){ box.innerHTML = `برگشتی برای این بارکد ثبت نشده — ابتدا فرم «برگشت از نگین‌کار» را پر کنید.`; return; }
+    box.innerHTML = `تعداد برگشتی (دور ${r}): <b>${ret.quantity}</b> — مجموع تایید‌شده و رد‌شده باید با این عدد برابر باشد.`;
+  };
+  inp.addEventListener('input', update);
+}
+async function submitQc(){
+  const f = document.getElementById('frmQc');
+  const barcode = f.barcode.value.trim();
+  const approvedQty = f.approvedQty.value;
+  const rejectedQty = f.rejectedQty.value;
+  const defectNote = f.defectNote.value.trim();
+  if(!barcode || approvedQty==='' || rejectedQty===''){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
+  const round = maxRound(barcode);
+  if(!round){ showToast('برای این بارکد سابقه ارسال یافت نشد', true); return; }
+  const result = Number(rejectedQty) > 0 && Number(approvedQty)===0 ? 'rejected' : (Number(rejectedQty) > 0 ? 'partial' : 'approved');
+  const ev = { id:uid(), barcode, stage:'qc', round, approvedQty:Number(approvedQty), rejectedQty:Number(rejectedQty), defectNote, result: Number(rejectedQty)>0 ? 'rejected':'approved', date:new Date().toISOString().slice(0,10), createdAt:Date.now() };
+  const ok = await addEvent(ev);
+  if(ok){ showToast('نتیجه کنترل کیفیت ثبت شد'); navigate('qc'); }
+  else showToast('خطا در ذخیره‌سازی', true);
+}
+
+/* ============================ RENDER: SEND TO SHOP ============================ */
+function renderSendShop(){
+  return `
+    <div class="topbar"><div><h1>ارسال به مغازه</h1><p>پس از تایید کیفیت، جنس به مغازه ارسال می‌شود</p></div></div>
+    <div class="card">
+      <form id="frmSendShop" class="form-grid">
+        <div class="field"><label>بارکد آیتم</label><input type="text" name="barcode" class="mono-field" required></div>
+        <div class="field">
+          <label>مغازه</label>
+          <select name="shop" required>
+            <option value="">— انتخاب کنید —</option>
+            ${DB.shops.map(s=>`<option value="${s}">${s}</option>`).join('')}
+          </select>
+          <div class="add-inline">
+            <input type="text" id="newShopName" placeholder="مغازه جدید…">
+            <button type="button" onclick="quickAddShop()">افزودن</button>
+          </div>
+        </div>
+        <div class="field"><label>تعداد ارسالی</label><input type="number" name="quantity" min="1" required></div>
+        <div class="field"><label>تاریخ ارسال</label><input type="date" name="date" required></div>
+      </form>
+      <div class="form-actions"><button class="btn-primary" onclick="submitSendShop()">ثبت ارسال</button></div>
+    </div>
+  `;
+}
+function quickAddShop(){
+  const inp = document.getElementById('newShopName');
+  const name = inp.value.trim();
+  if(!name) return;
+  addShop(name).then(()=>{ inp.value=''; render(); showToast(`«${name}» اضافه شد`); });
+}
+async function submitSendShop(){
+  const f = document.getElementById('frmSendShop');
+  const barcode = f.barcode.value.trim();
+  const shop = f.shop.value;
+  const quantity = f.quantity.value;
+  const date = f.date.value;
+  if(!barcode || !shop || !quantity || !date){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
+  const ev = { id:uid(), barcode, stage:'send_shop', shop, quantity:Number(quantity), date, createdAt:Date.now() };
+  const ok = await addEvent(ev);
+  if(ok){ showToast('ارسال به مغازه ثبت شد'); navigate('send_shop'); }
+  else showToast('خطا در ذخیره‌سازی', true);
+}
+
+/* ============================ RENDER: RECEIVE AT SHOP ============================ */
+function renderReceiveShop(){
+  return `
+    <div class="topbar"><div><h1>دریافت در مغازه</h1><p>تایید نهایی دریافت جنس در مغازه</p></div></div>
+    <div class="card">
+      <form id="frmRecvShop" class="form-grid">
+        <div class="field"><label>بارکد آیتم</label><input type="text" name="barcode" class="mono-field" required></div>
+        <div class="field"><label>تعداد دریافتی</label><input type="number" name="quantity" min="0" required></div>
+        <div class="field"><label>تاریخ دریافت</label><input type="date" name="date" required></div>
+      </form>
+      <div id="recvShopHint" class="lookup-box" style="display:none;"></div>
+      <div class="form-actions"><button class="btn-primary" onclick="submitReceiveShop()">ثبت دریافت</button></div>
+    </div>
+  `;
+}
+function bindRecvShopHint(){
+  const inp = document.querySelector('#frmRecvShop [name="barcode"]');
+  if(!inp) return;
+  const update = ()=>{
+    const bc = inp.value.trim();
+    const box = document.getElementById('recvShopHint');
+    if(!bc){ box.style.display='none'; return; }
+    const send = DB.events.find(e=>e.barcode===bc && e.stage==='send_shop');
+    box.style.display='block';
+    if(!send){ box.innerHTML = `ارسالی به مغازه برای این بارکد ثبت نشده.`; return; }
+    box.innerHTML = `ارسالی به مغازه «${send.shop}»: <b>${send.quantity}</b> عدد در تاریخ ${fmtDate(send.date)}`;
+  };
+  inp.addEventListener('input', update);
+}
+async function submitReceiveShop(){
+  const f = document.getElementById('frmRecvShop');
+  const barcode = f.barcode.value.trim();
+  const quantity = f.quantity.value;
+  const date = f.date.value;
+  if(!barcode || quantity==='' || !date){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
+  const ev = { id:uid(), barcode, stage:'receive_shop', quantity:Number(quantity), date, createdAt:Date.now() };
+  const ok = await addEvent(ev);
+  if(ok){ showToast('دریافت در مغازه ثبت شد'); navigate('receive_shop'); }
+  else showToast('خطا در ذخیره‌سازی', true);
+}
+
+/* ============================ MASTER RENDER ============================ */
+function render(){
+  renderNav();
+  const main = document.getElementById('main');
+  let html = '';
+  switch(state.view){
+    case 'dashboard': html = renderDashboard(); break;
+    case 'lookup': html = renderLookup(); break;
+    case 'receiving': html = renderReceiving(); break;
+    case 'send_neginkar': html = renderSendNeginkar(); break;
+    case 'return_neginkar': html = renderReturnNeginkar(); break;
+    case 'qc': html = renderQc(); break;
+    case 'send_shop': html = renderSendShop(); break;
+    case 'receive_shop': html = renderReceiveShop(); break;
+    default: html = renderDashboard();
+  }
+  main.innerHTML = html;
+
+  // post-render bindings
+  if(state.view==='send_neginkar') bindBarcodeRoundHint();
+  if(state.view==='return_neginkar') bindReturnHint();
+  if(state.view==='qc') bindQcHint();
+  if(state.view==='receive_shop') bindRecvShopHint();
+
+  const todayInputs = main.querySelectorAll('input[type="date"]');
+  todayInputs.forEach(i=>{ if(!i.value) i.value = new Date().toISOString().slice(0,10); });
+}
+
+/* ============================ INIT ============================ */
+async function init(){
+  document.getElementById('main').innerHTML = `<div class="empty-state" style="padding-top:60px;">در حال بارگذاری…</div>`;
+  await loadAll();
+  render();
+}
+
+// Expose functions referenced by inline onclick="" handlers (module scope is not global)
+window.navigateLookup = navigateLookup;
+window.quickSearchGo = quickSearchGo;
+window.doLookup = doLookup;
+window.submitReceiving = submitReceiving;
+window.quickAddNeginkar = quickAddNeginkar;
+window.submitSendNeginkar = submitSendNeginkar;
+window.quickAddShop = quickAddShop;
+window.submitSendShop = submitSendShop;
+window.submitReturnNeginkar = submitReturnNeginkar;
+window.submitQc = submitQc;
+window.submitReceiveShop = submitReceiveShop;
+
+init();
+</script>
+</body>
+</html>
