@@ -275,10 +275,11 @@ const KEYS = {
   receiving: 'receiving-log',
   events: 'events',
   neginkars: 'negin-kars',
-  shops: 'shops'
+  shops: 'shops',
+  team: 'team-members'
 };
 
-let DB = { receiving: [], events: [], neginkars: [], shops: [] };
+let DB = { receiving: [], events: [], neginkars: [], shops: [], team: [] };
 
 function uid(){ return 'x' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
 
@@ -304,16 +305,18 @@ async function storageSet(key, value){
 }
 
 async function loadAll(){
-  const [receiving, events, neginkars, shops] = await Promise.all([
+  const [receiving, events, neginkars, shops, team] = await Promise.all([
     storageGet(KEYS.receiving, []),
     storageGet(KEYS.events, []),
     storageGet(KEYS.neginkars, []),
-    storageGet(KEYS.shops, [])
+    storageGet(KEYS.shops, []),
+    storageGet(KEYS.team, [])
   ]);
   DB.receiving = receiving;
   DB.events = events;
   DB.neginkars = neginkars;
   DB.shops = shops;
+  DB.team = team;
 }
 
 async function addReceiving(rec){
@@ -342,6 +345,12 @@ async function addShop(name){
   if(!DB.shops.includes(name)){
     DB.shops = [...DB.shops, name];
     await storageSet(KEYS.shops, DB.shops);
+  }
+}
+async function addTeamMember(name){
+  if(!DB.team.includes(name)){
+    DB.team = [...DB.team, name];
+    await storageSet(KEYS.team, DB.team);
   }
 }
 
@@ -585,12 +594,13 @@ function renderDashboard(){
     <div class="card">
       <h2 class="sec-title"><span class="bar"></span>فعالیت‌های اخیر</h2>
       ${recent.length===0 ? `<div class="empty-state">هنوز رویدادی ثبت نشده</div>` :
-        `<table><thead><tr><th>بارکد</th><th>مرحله</th><th>تعداد</th><th>تاریخ</th><th></th></tr></thead><tbody>
+        `<table><thead><tr><th>بارکد</th><th>مرحله</th><th>تعداد</th><th>تاریخ</th><th>مسئول</th><th></th></tr></thead><tbody>
         ${recent.map(e=>`<tr>
           <td><span class="barcode-chip mono">${e.barcode}</span></td>
           <td>${STAGE_LABELS[e.stage]||e.stage} ${e.round?`<span class="stage-pill">دور ${e.round}</span>`:''}</td>
           <td class="mono">${e.quantity ?? '—'}</td>
           <td>${fmtDate(e.date)}</td>
+          <td>${e.responsible||'—'}</td>
           <td><button class="del-btn" onclick="confirmDeleteEvent('${e.id}')" title="حذف">✕</button></td>
         </tr>`).join('')}
         </tbody></table>`
@@ -682,12 +692,15 @@ async function confirmDeleteEvent(id){
   else showToast('خطا در حذف', true);
 }
 function eventDetailText(e){
-  if(e.stage==='send_neginkar') return `خیاط: ${e.neginKar}`;
-  if(e.stage==='qc') return e.result==='approved' ? `تایید: ${e.approvedQty} / رد: ${e.rejectedQty}` : `رد شد — ${e.defectNote||'بدون توضیح'}`;
-  if(e.stage==='send_shop') return `مغازه: ${e.shop}`;
-  if(e.stage==='send_factory') return `دلیل: ${e.reason||'—'}`;
-  if(e.note) return e.note;
-  return '—';
+  let base = '';
+  if(e.stage==='send_neginkar') base = `خیاط: ${e.neginKar}`;
+  else if(e.stage==='qc') base = e.result==='approved' ? `تایید: ${e.approvedQty} / رد: ${e.rejectedQty}` : `رد شد — ${e.defectNote||'بدون توضیح'}`;
+  else if(e.stage==='send_shop') base = `مغازه: ${e.shop}`;
+  else if(e.stage==='send_factory') base = `دلیل: ${e.reason||'—'}`;
+  else if(e.note) base = e.note;
+  else base = '—';
+  if(e.responsible) base += ` · مسئول: ${e.responsible}`;
+  return base;
 }
 
 /* ============================ RENDER: RECEIVING FORM ============================ */
@@ -701,14 +714,15 @@ function renderReceiving(){
         <div class="field"><label>تعداد دریافتی</label><input type="number" name="quantity" min="1" required></div>
         <div class="field"><label>تاریخ دریافت</label><input type="date" name="date" required></div>
         <div class="field"><label>توضیحات (اختیاری)</label><input type="text" name="note"></div>
+        ${responsibleFieldHtml()}
       </form>
       <div class="form-actions"><button class="btn-primary" onclick="submitReceiving()">ثبت دریافت</button></div>
     </div>
     <div class="card">
       <h2 class="sec-title"><span class="bar"></span>آخرین موارد ثبت‌شده</h2>
       ${log.length===0 ? `<div class="empty-state">هنوز چیزی ثبت نشده</div>` :
-        `<table><thead><tr><th>نوع محصول</th><th>تعداد</th><th>تاریخ</th><th>توضیحات</th><th></th></tr></thead><tbody>
-        ${log.map(r=>`<tr><td>${r.productType}</td><td class="mono">${r.quantity}</td><td>${fmtDate(r.date)}</td><td>${r.note||'—'}</td><td><button class="del-btn" onclick="confirmDeleteReceiving('${r.id}')" title="حذف">✕</button></td></tr>`).join('')}
+        `<table><thead><tr><th>نوع محصول</th><th>تعداد</th><th>تاریخ</th><th>توضیحات</th><th>مسئول</th><th></th></tr></thead><tbody>
+        ${log.map(r=>`<tr><td>${r.productType}</td><td class="mono">${r.quantity}</td><td>${fmtDate(r.date)}</td><td>${r.note||'—'}</td><td>${r.responsible||'—'}</td><td><button class="del-btn" onclick="confirmDeleteReceiving('${r.id}')" title="حذف">✕</button></td></tr>`).join('')}
         </tbody></table>`}
     </div>
   `;
@@ -725,8 +739,9 @@ async function submitReceiving(){
   const quantity = f.quantity.value;
   const date = f.date.value;
   const note = f.note.value.trim();
-  if(!productType || !quantity || !date){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
-  const rec = { id:uid(), productType, quantity:Number(quantity), date, note, createdAt:Date.now() };
+  const responsible = f.responsible.value;
+  if(!productType || !quantity || !date || !responsible){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
+  const rec = { id:uid(), productType, quantity:Number(quantity), date, note, responsible, createdAt:Date.now() };
   const ok = await addReceiving(rec);
   if(ok){ showToast('دریافت با موفقیت ثبت شد'); navigate('receiving'); }
   else showToast('خطا در ذخیره‌سازی', true);
@@ -752,6 +767,7 @@ function renderSendNeginkar(){
         </div>
         <div class="field"><label>تعداد ارسالی</label><input type="number" name="quantity" min="1" required></div>
         <div class="field"><label>تاریخ ارسال</label><input type="date" name="date" required></div>
+        ${responsibleFieldHtml()}
       </form>
       <div id="sendNkRoundHint" class="lookup-box" style="display:none;"></div>
       <div class="form-actions"><button class="btn-primary" onclick="submitSendNeginkar()">ثبت ارسال</button></div>
@@ -763,6 +779,27 @@ function quickAddNeginkar(){
   const name = inp.value.trim();
   if(!name) return;
   addNeginkar(name).then(()=>{ inp.value=''; render(); showToast(`«${name}» اضافه شد`); });
+}
+function quickAddTeamMember(){
+  const inp = document.getElementById('newTeamName');
+  const name = inp.value.trim();
+  if(!name) return;
+  addTeamMember(name).then(()=>{ inp.value=''; render(); showToast(`«${name}» اضافه شد`); });
+}
+function responsibleFieldHtml(){
+  return `
+    <div class="field">
+      <label>مسئول (کسی که این مرحله را انجام داد)</label>
+      <select name="responsible" required>
+        <option value="">— انتخاب کنید —</option>
+        ${DB.team.map(t=>`<option value="${t}">${t}</option>`).join('')}
+      </select>
+      <div class="add-inline">
+        <input type="text" id="newTeamName" placeholder="نفر جدید…">
+        <button type="button" onclick="quickAddTeamMember()">افزودن</button>
+      </div>
+    </div>
+  `;
 }
 function bindBarcodeRoundHint(){
   const inp = document.querySelector('#frmSendNk [name="barcode"]');
@@ -788,9 +825,10 @@ async function submitSendNeginkar(){
   const neginKar = f.neginKar.value;
   const quantity = f.quantity.value;
   const date = f.date.value;
-  if(!barcode || !neginKar || !quantity || !date){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
+  const responsible = f.responsible.value;
+  if(!barcode || !neginKar || !quantity || !date || !responsible){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
   const round = nextRound(barcode);
-  const ev = { id:uid(), barcode, stage:'send_neginkar', round, neginKar, quantity:Number(quantity), date, createdAt:Date.now() };
+  const ev = { id:uid(), barcode, stage:'send_neginkar', round, neginKar, quantity:Number(quantity), date, responsible, createdAt:Date.now() };
   const ok = await addEvent(ev);
   if(ok){ showToast(`ارسال دور ${round} ثبت شد`); navigate('send_neginkar'); }
   else showToast('خطا در ذخیره‌سازی', true);
@@ -805,6 +843,7 @@ function renderReturnNeginkar(){
         <div class="field"><label>بارکد آیتم</label><input type="text" name="barcode" class="mono-field" required></div>
         <div class="field"><label>تعداد برگشتی</label><input type="number" name="quantity" min="0" required></div>
         <div class="field"><label>تاریخ برگشت</label><input type="date" name="date" required></div>
+        ${responsibleFieldHtml()}
       </form>
       <div id="retNkHint" class="lookup-box" style="display:none;"></div>
       <div class="form-actions"><button class="btn-primary" onclick="submitReturnNeginkar()">ثبت برگشت</button></div>
@@ -831,10 +870,11 @@ async function submitReturnNeginkar(){
   const barcode = f.barcode.value.trim();
   const quantity = f.quantity.value;
   const date = f.date.value;
-  if(!barcode || quantity==='' || !date){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
+  const responsible = f.responsible.value;
+  if(!barcode || quantity==='' || !date || !responsible){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
   const round = maxRound(barcode);
   if(!round){ showToast('برای این بارکد هیچ ارسالی ثبت نشده است', true); return; }
-  const ev = { id:uid(), barcode, stage:'return_neginkar', round, quantity:Number(quantity), date, createdAt:Date.now() };
+  const ev = { id:uid(), barcode, stage:'return_neginkar', round, quantity:Number(quantity), date, responsible, createdAt:Date.now() };
   const ok = await addEvent(ev);
   if(ok){ showToast('برگشت ثبت شد'); navigate('return_neginkar'); }
   else showToast('خطا در ذخیره‌سازی', true);
@@ -850,6 +890,7 @@ function renderQc(){
         <div class="field"><label>تعداد تایید‌شده</label><input type="number" name="approvedQty" min="0" required></div>
         <div class="field"><label>تعداد رد‌شده</label><input type="number" name="rejectedQty" min="0" required></div>
         <div class="field"><label>توضیح ایراد (اگر رد شده)</label><input type="text" name="defectNote"></div>
+        ${responsibleFieldHtml()}
       </form>
       <div id="qcHint" class="lookup-box" style="display:none;"></div>
       <div class="form-actions"><button class="btn-primary" onclick="submitQc()">ثبت نتیجه</button></div>
@@ -877,11 +918,12 @@ async function submitQc(){
   const approvedQty = f.approvedQty.value;
   const rejectedQty = f.rejectedQty.value;
   const defectNote = f.defectNote.value.trim();
-  if(!barcode || approvedQty==='' || rejectedQty===''){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
+  const responsible = f.responsible.value;
+  if(!barcode || approvedQty==='' || rejectedQty==='' || !responsible){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
   const round = maxRound(barcode);
   if(!round){ showToast('برای این بارکد سابقه ارسال یافت نشد', true); return; }
   const result = Number(rejectedQty) > 0 && Number(approvedQty)===0 ? 'rejected' : (Number(rejectedQty) > 0 ? 'partial' : 'approved');
-  const ev = { id:uid(), barcode, stage:'qc', round, approvedQty:Number(approvedQty), rejectedQty:Number(rejectedQty), defectNote, result: Number(rejectedQty)>0 ? 'rejected':'approved', date:new Date().toISOString().slice(0,10), createdAt:Date.now() };
+  const ev = { id:uid(), barcode, stage:'qc', round, approvedQty:Number(approvedQty), rejectedQty:Number(rejectedQty), defectNote, responsible, result: Number(rejectedQty)>0 ? 'rejected':'approved', date:new Date().toISOString().slice(0,10), createdAt:Date.now() };
   const ok = await addEvent(ev);
   if(ok){ showToast('نتیجه کنترل کیفیت ثبت شد'); navigate('qc'); }
   else showToast('خطا در ذخیره‌سازی', true);
@@ -898,14 +940,15 @@ function renderSendFactory(){
         <div class="field"><label>تعداد ارسالی</label><input type="number" name="quantity" min="1" required></div>
         <div class="field"><label>تاریخ ارسال</label><input type="date" name="date" required></div>
         <div class="field"><label>دلیل برگشت (برای اطلاع کارخانه)</label><input type="text" name="reason" placeholder="مثلاً: نگین خورده" required></div>
+        ${responsibleFieldHtml()}
       </form>
       <div class="form-actions"><button class="btn-primary" onclick="submitSendFactory()">ثبت ارسال به کارخانه</button></div>
     </div>
     <div class="card">
       <h2 class="sec-title"><span class="bar"></span>آخرین موارد ارسال‌شده به کارخانه</h2>
       ${log.length===0 ? `<div class="empty-state">هنوز چیزی ثبت نشده</div>` :
-        `<table><thead><tr><th>بارکد</th><th>تعداد</th><th>تاریخ</th><th>دلیل</th><th></th></tr></thead><tbody>
-        ${log.map(e=>`<tr><td><span class="barcode-chip mono">${e.barcode}</span></td><td class="mono">${e.quantity}</td><td>${fmtDate(e.date)}</td><td>${e.reason||'—'}</td><td><button class="del-btn" onclick="confirmDeleteEvent('${e.id}')" title="حذف">✕</button></td></tr>`).join('')}
+        `<table><thead><tr><th>بارکد</th><th>تعداد</th><th>تاریخ</th><th>دلیل</th><th>مسئول</th><th></th></tr></thead><tbody>
+        ${log.map(e=>`<tr><td><span class="barcode-chip mono">${e.barcode}</span></td><td class="mono">${e.quantity}</td><td>${fmtDate(e.date)}</td><td>${e.reason||'—'}</td><td>${e.responsible||'—'}</td><td><button class="del-btn" onclick="confirmDeleteEvent('${e.id}')" title="حذف">✕</button></td></tr>`).join('')}
         </tbody></table>`}
     </div>
   `;
@@ -916,8 +959,9 @@ async function submitSendFactory(){
   const quantity = f.quantity.value;
   const date = f.date.value;
   const reason = f.reason.value.trim();
-  if(!barcode || !quantity || !date || !reason){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
-  const ev = { id:uid(), barcode, stage:'send_factory', quantity:Number(quantity), date, reason, createdAt:Date.now() };
+  const responsible = f.responsible.value;
+  if(!barcode || !quantity || !date || !reason || !responsible){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
+  const ev = { id:uid(), barcode, stage:'send_factory', quantity:Number(quantity), date, reason, responsible, createdAt:Date.now() };
   const ok = await addEvent(ev);
   if(ok){ showToast('ارسال به کارخانه ثبت شد'); navigate('send_factory'); }
   else showToast('خطا در ذخیره‌سازی', true);
@@ -942,6 +986,7 @@ function renderSendShop(){
         </div>
         <div class="field"><label>تعداد ارسالی</label><input type="number" name="quantity" min="1" required></div>
         <div class="field"><label>تاریخ ارسال</label><input type="date" name="date" required></div>
+        ${responsibleFieldHtml()}
       </form>
       <div class="form-actions"><button class="btn-primary" onclick="submitSendShop()">ثبت ارسال</button></div>
     </div>
@@ -959,8 +1004,9 @@ async function submitSendShop(){
   const shop = f.shop.value;
   const quantity = f.quantity.value;
   const date = f.date.value;
-  if(!barcode || !shop || !quantity || !date){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
-  const ev = { id:uid(), barcode, stage:'send_shop', shop, quantity:Number(quantity), date, createdAt:Date.now() };
+  const responsible = f.responsible.value;
+  if(!barcode || !shop || !quantity || !date || !responsible){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
+  const ev = { id:uid(), barcode, stage:'send_shop', shop, quantity:Number(quantity), date, responsible, createdAt:Date.now() };
   const ok = await addEvent(ev);
   if(ok){ showToast('ارسال به مغازه ثبت شد'); navigate('send_shop'); }
   else showToast('خطا در ذخیره‌سازی', true);
@@ -975,6 +1021,7 @@ function renderReceiveShop(){
         <div class="field"><label>بارکد آیتم</label><input type="text" name="barcode" class="mono-field" required></div>
         <div class="field"><label>تعداد دریافتی</label><input type="number" name="quantity" min="0" required></div>
         <div class="field"><label>تاریخ دریافت</label><input type="date" name="date" required></div>
+        ${responsibleFieldHtml()}
       </form>
       <div id="recvShopHint" class="lookup-box" style="display:none;"></div>
       <div class="form-actions"><button class="btn-primary" onclick="submitReceiveShop()">ثبت دریافت</button></div>
@@ -1000,8 +1047,9 @@ async function submitReceiveShop(){
   const barcode = f.barcode.value.trim();
   const quantity = f.quantity.value;
   const date = f.date.value;
-  if(!barcode || quantity==='' || !date){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
-  const ev = { id:uid(), barcode, stage:'receive_shop', quantity:Number(quantity), date, createdAt:Date.now() };
+  const responsible = f.responsible.value;
+  if(!barcode || quantity==='' || !date || !responsible){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
+  const ev = { id:uid(), barcode, stage:'receive_shop', quantity:Number(quantity), date, responsible, createdAt:Date.now() };
   const ok = await addEvent(ev);
   if(ok){ showToast('دریافت در مغازه ثبت شد'); navigate('receive_shop'); }
   else showToast('خطا در ذخیره‌سازی', true);
@@ -1049,6 +1097,7 @@ window.quickSearchGo = quickSearchGo;
 window.doLookup = doLookup;
 window.submitReceiving = submitReceiving;
 window.quickAddNeginkar = quickAddNeginkar;
+window.quickAddTeamMember = quickAddTeamMember;
 window.submitSendNeginkar = submitSendNeginkar;
 window.quickAddShop = quickAddShop;
 window.submitSendFactory = submitSendFactory;
