@@ -571,12 +571,13 @@ function renderDashboard(){
     <div class="card">
       <h2 class="sec-title"><span class="bar"></span>فعالیت‌های اخیر</h2>
       ${recent.length===0 ? `<div class="empty-state">هنوز رویدادی ثبت نشده</div>` :
-        `<table><thead><tr><th>بارکد</th><th>مرحله</th><th>تعداد</th><th>تاریخ</th></tr></thead><tbody>
+        `<table><thead><tr><th>بارکد</th><th>مرحله</th><th>تعداد</th><th>تاریخ</th><th></th></tr></thead><tbody>
         ${recent.map(e=>`<tr>
           <td><span class="barcode-chip mono">${e.barcode}</span></td>
           <td>${STAGE_LABELS[e.stage]||e.stage} ${e.round?`<span class="stage-pill">دور ${e.round}</span>`:''}</td>
           <td class="mono">${e.quantity ?? '—'}</td>
           <td>${fmtDate(e.date)}</td>
+          <td><button class="del-btn" onclick="confirmDeleteEvent('${e.id}')" title="حذف">✕</button></td>
         </tr>`).join('')}
         </tbody></table>`
       }
