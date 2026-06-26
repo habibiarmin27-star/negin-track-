@@ -160,6 +160,12 @@
     border-radius:8px; padding:6px 12px; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit;
   }
   .link-btn:hover{background:var(--teal); color:#fff;}
+  .del-btn{
+    background:none; border:1px solid var(--rose); color:var(--rose);
+    border-radius:7px; width:26px; height:26px; font-size:13px; cursor:pointer;
+    line-height:1; font-family:inherit;
+  }
+  .del-btn:hover{background:var(--rose); color:#fff;}
   .empty-state{text-align:center; padding:30px 10px; color:var(--ink-soft); font-size:13px;}
 
   /* Forms */
@@ -308,8 +314,16 @@ async function addReceiving(rec){
   DB.receiving = [...DB.receiving, rec];
   return storageSet(KEYS.receiving, DB.receiving);
 }
+async function deleteReceiving(id){
+  DB.receiving = DB.receiving.filter(r => r.id !== id);
+  return storageSet(KEYS.receiving, DB.receiving);
+}
 async function addEvent(ev){
   DB.events = [...DB.events, ev];
+  return storageSet(KEYS.events, DB.events);
+}
+async function deleteEvent(id){
+  DB.events = DB.events.filter(e => e.id !== id);
   return storageSet(KEYS.events, DB.events);
 }
 async function addNeginkar(name){
@@ -627,7 +641,7 @@ function renderLookupResult(summary){
     <div class="card">
       <h2 class="sec-title"><span class="bar"></span>تاریخچه رویدادها</h2>
       <table>
-        <thead><tr><th>مرحله</th><th>تاریخ</th><th>تعداد</th><th>جزئیات</th></tr></thead>
+        <thead><tr><th>مرحله</th><th>تاریخ</th><th>تعداد</th><th>جزئیات</th><th></th></tr></thead>
         <tbody>
         ${summary.evs.map(e=>`
           <tr>
@@ -635,12 +649,19 @@ function renderLookupResult(summary){
             <td>${fmtDate(e.date)}</td>
             <td class="mono">${e.quantity ?? (e.approvedQty!=null ? `${e.approvedQty}/${e.rejectedQty}`:'—')}</td>
             <td>${eventDetailText(e)}</td>
+            <td><button class="del-btn" onclick="confirmDeleteEvent('${e.id}')" title="حذف">✕</button></td>
           </tr>
         `).join('')}
         </tbody>
       </table>
     </div>
   `;
+}
+async function confirmDeleteEvent(id){
+  if(!confirm('این رویداد حذف شود؟ این کار قابل بازگشت نیست.')) return;
+  const ok = await deleteEvent(id);
+  if(ok){ showToast('حذف شد'); render(); }
+  else showToast('خطا در حذف', true);
 }
 function eventDetailText(e){
   if(e.stage==='send_neginkar') return `نگین‌کار: ${e.neginKar}`;
@@ -667,11 +688,17 @@ function renderReceiving(){
     <div class="card">
       <h2 class="sec-title"><span class="bar"></span>آخرین موارد ثبت‌شده</h2>
       ${log.length===0 ? `<div class="empty-state">هنوز چیزی ثبت نشده</div>` :
-        `<table><thead><tr><th>نوع محصول</th><th>تعداد</th><th>تاریخ</th><th>توضیحات</th></tr></thead><tbody>
-        ${log.map(r=>`<tr><td>${r.productType}</td><td class="mono">${r.quantity}</td><td>${fmtDate(r.date)}</td><td>${r.note||'—'}</td></tr>`).join('')}
+        `<table><thead><tr><th>نوع محصول</th><th>تعداد</th><th>تاریخ</th><th>توضیحات</th><th></th></tr></thead><tbody>
+        ${log.map(r=>`<tr><td>${r.productType}</td><td class="mono">${r.quantity}</td><td>${fmtDate(r.date)}</td><td>${r.note||'—'}</td><td><button class="del-btn" onclick="confirmDeleteReceiving('${r.id}')" title="حذف">✕</button></td></tr>`).join('')}
         </tbody></table>`}
     </div>
   `;
+}
+async function confirmDeleteReceiving(id){
+  if(!confirm('این مورد حذف شود؟ این کار قابل بازگشت نیست.')) return;
+  const ok = await deleteReceiving(id);
+  if(ok){ showToast('حذف شد'); navigate('receiving'); }
+  else showToast('خطا در حذف', true);
 }
 async function submitReceiving(){
   const f = document.getElementById('frmReceiving');
@@ -973,6 +1000,8 @@ window.submitSendShop = submitSendShop;
 window.submitReturnNeginkar = submitReturnNeginkar;
 window.submitQc = submitQc;
 window.submitReceiveShop = submitReceiveShop;
+window.confirmDeleteReceiving = confirmDeleteReceiving;
+window.confirmDeleteEvent = confirmDeleteEvent;
 
 init();
 </script>
