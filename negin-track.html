@@ -774,17 +774,25 @@ function renderSendNeginkar(){
     </div>
   `;
 }
+function addOptionToSelect(selectName, value){
+  document.querySelectorAll(`select[name="${selectName}"]`).forEach(sel=>{
+    const opt = document.createElement('option');
+    opt.value = value; opt.textContent = value;
+    sel.appendChild(opt);
+    sel.value = value;
+  });
+}
 function quickAddNeginkar(){
   const inp = document.getElementById('newNkName');
   const name = inp.value.trim();
   if(!name) return;
-  addNeginkar(name).then(()=>{ inp.value=''; render(); showToast(`«${name}» اضافه شد`); });
+  addNeginkar(name).then(()=>{ inp.value=''; addOptionToSelect('neginKar', name); showToast(`«${name}» اضافه شد`); });
 }
 function quickAddTeamMember(){
   const inp = document.getElementById('newTeamName');
   const name = inp.value.trim();
   if(!name) return;
-  addTeamMember(name).then(()=>{ inp.value=''; render(); showToast(`«${name}» اضافه شد`); });
+  addTeamMember(name).then(()=>{ inp.value=''; addOptionToSelect('responsible', name); showToast(`«${name}» اضافه شد`); });
 }
 function responsibleFieldHtml(){
   return `
@@ -996,7 +1004,7 @@ function quickAddShop(){
   const inp = document.getElementById('newShopName');
   const name = inp.value.trim();
   if(!name) return;
-  addShop(name).then(()=>{ inp.value=''; render(); showToast(`«${name}» اضافه شد`); });
+  addShop(name).then(()=>{ inp.value=''; addOptionToSelect('shop', name); showToast(`«${name}» اضافه شد`); });
 }
 async function submitSendShop(){
   const f = document.getElementById('frmSendShop');
