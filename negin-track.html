@@ -143,6 +143,12 @@
   .badge.b-rejected{background:var(--rose-soft); color:var(--rose);}
   .badge.b-done{background:var(--sage-soft); color:var(--sage);}
   .badge.b-wait{background:#EFEAF1; color:#6B5E78;}
+  .badge.b-factory{background:#E8DCC8; color:#7A5A2E;}
+  .factory-banner{
+    background:#FBF4E8; border:1px solid #E0C99A; border-radius:12px;
+    padding:14px 16px; margin:10px 0; font-size:13px; color:#5A4426;
+  }
+  .factory-banner b{color:#3A2D14;}
 
   /* Tables */
   table{width:100%; border-collapse:collapse; font-size:13px;}
@@ -341,11 +347,12 @@ async function addShop(name){
 
 /* ============================ DOMAIN LOGIC ============================ */
 const STAGE_LABELS = {
-  send_neginkar: 'ارسال به نگین‌کار',
-  return_neginkar: 'برگشت از نگین‌کار',
+  send_neginkar: 'ارسال به خیاط',
+  return_neginkar: 'برگشت از خیاط',
   qc: 'کنترل کیفیت',
   send_shop: 'ارسال به مغازه',
-  receive_shop: 'دریافت در مغازه'
+  receive_shop: 'دریافت در مغازه',
+  send_factory: 'ارسال به کارخانه'
 };
 
 function eventsFor(barcode){
@@ -397,7 +404,13 @@ function getItemSummary(barcode){
     discrepancies.push(`ارسال به مغازه ${sendShop.quantity} بود، ${recvShop.quantity} دریافت تایید شد`);
   }
 
-  if(recvShop){
+  // factory return is independent of round/stage and is terminal — check first
+  const factoryEvents = evs.filter(e=>e.stage==='send_factory').sort((a,b)=>b.createdAt-a.createdAt);
+  const factoryEvent = factoryEvents[0];
+
+  if(factoryEvent){
+    status = `ارسال شده به کارخانه — ${factoryEvent.reason||'بدون دلیل ثبت‌شده'}`; statusType='factory'; currentStageKey='send_factory';
+  } else if(recvShop){
     status = 'تکمیل شده - موجود در مغازه'; statusType='done'; currentStageKey='receive_shop';
   } else if(sendShop){
     status = 'ارسال شده به مغازه، منتظر تایید دریافت'; statusType='progress'; currentStageKey='send_shop';
@@ -405,17 +418,17 @@ function getItemSummary(barcode){
     if(qc.result === 'approved'){
       status = 'تایید کیفیت شد، آماده ارسال به مغازه'; statusType='progress'; currentStageKey='qc';
     } else {
-      status = `رد شد در دور ${r} - منتظر ارسال دوباره به نگین‌کار`; statusType='rejected'; currentStageKey='qc';
+      status = `رد شد در دور ${r} - منتظر ارسال دوباره به خیاط`; statusType='rejected'; currentStageKey='qc';
     }
   } else if(ret){
-    status = 'برگشته از نگین‌کار، منتظر کنترل کیفیت'; statusType='wait'; currentStageKey='return_neginkar';
+    status = 'برگشته از خیاط، منتظر کنترل کیفیت'; statusType='wait'; currentStageKey='return_neginkar';
   } else if(send){
-    status = `نزد نگین‌کار «${send.neginKar}» (دور ${r})`; statusType='progress'; currentStageKey='send_neginkar';
+    status = `نزد خیاط «${send.neginKar}» (دور ${r})`; statusType='progress'; currentStageKey='send_neginkar';
   } else {
     status = 'بدون رویداد ثبت‌شده'; statusType='wait'; currentStageKey='';
   }
 
-  return { barcode, round:r, send, ret, qc, sendShop, recvShop, status, statusType, currentStageKey, discrepancies, evs };
+  return { barcode, round:r, send, ret, qc, sendShop, recvShop, factoryEvent, status, statusType, currentStageKey, discrepancies, evs };
 }
 
 function dashboardStats(){
@@ -440,9 +453,10 @@ const ROUTES = [
   { key:'dashboard', label:'داشبورد', ico:'◧', group:'main' },
   { key:'lookup', label:'پیگیری بارکد', ico:'⌕', group:'main' },
   { key:'receiving', label:'دریافت از کارخونه', ico:'①', group:'forms' },
-  { key:'send_neginkar', label:'ارسال به نگین‌کار', ico:'②', group:'forms' },
-  { key:'return_neginkar', label:'برگشت از نگین‌کار', ico:'③', group:'forms' },
+  { key:'send_neginkar', label:'ارسال به خیاط', ico:'②', group:'forms' },
+  { key:'return_neginkar', label:'برگشت از خیاط', ico:'③', group:'forms' },
   { key:'qc', label:'کنترل کیفیت', ico:'④', group:'forms' },
+  { key:'send_factory', label:'ارسال به کارخانه', ico:'🏭', group:'forms' },
   { key:'send_shop', label:'ارسال به مغازه', ico:'⑤', group:'forms' },
   { key:'receive_shop', label:'دریافت در مغازه', ico:'⑥', group:'forms' },
 ];
@@ -507,8 +521,8 @@ function navItemHtml(r){
 /* ============================ RENDER: JOURNEY STRIP ============================ */
 function journeyStripHtml(summary){
   const stages = [
-    {key:'send_neginkar', label:'ارسال نگین‌کار'},
-    {key:'return_neginkar', label:'برگشت نگین‌کار'},
+    {key:'send_neginkar', label:'ارسال خیاط'},
+    {key:'return_neginkar', label:'برگشت خیاط'},
     {key:'qc', label:'کنترل کیفیت'},
     {key:'send_shop', label:'ارسال مغازه'},
     {key:'receive_shop', label:'دریافت مغازه'},
@@ -547,7 +561,7 @@ function renderDashboard(){
 
     <div class="stat-grid">
       <div class="stat-card"><div class="num mono">${stats.total}</div><div class="lbl">کل آیتم‌های دارای بارکد</div></div>
-      <div class="stat-card"><div class="num mono">${stats.inNeginkar}</div><div class="lbl">نزد نگین‌کار</div></div>
+      <div class="stat-card"><div class="num mono">${stats.inNeginkar}</div><div class="lbl">نزد خیاط</div></div>
       <div class="stat-card warn"><div class="num mono">${stats.rejected}</div><div class="lbl">رد شده / منتظر اصلاح</div></div>
       <div class="stat-card"><div class="num mono">${stats.done}</div><div class="lbl">تکمیل شده در مغازه</div></div>
     </div>
@@ -629,14 +643,17 @@ function renderLookupResult(summary){
   if(!summary || summary.evs.length===0){
     return `<div class="card"><div class="empty-state">هیچ رویدادی برای بارکد «${summary?summary.barcode:''}» پیدا نشد</div></div>`;
   }
-  const badgeClass = summary.statusType==='rejected' ? 'b-rejected' : summary.statusType==='done' ? 'b-done' : summary.statusType==='wait' ? 'b-wait' : 'b-progress';
+  const badgeClass = summary.statusType==='rejected' ? 'b-rejected' : summary.statusType==='done' ? 'b-done' : summary.statusType==='factory' ? 'b-factory' : summary.statusType==='wait' ? 'b-wait' : 'b-progress';
   return `
     <div class="card">
       <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:6px;">
         <span class="barcode-chip mono" style="font-size:15px;">${summary.barcode}</span>
         <span class="badge ${badgeClass}">${summary.status}</span>
       </div>
-      ${journeyStripHtml(summary)}
+      ${summary.statusType==='factory' ?
+        `<div class="factory-banner">🏭 این آیتم به کارخانه برگشت داده شده — <b>${summary.factoryEvent.quantity}</b> عدد در تاریخ ${fmtDate(summary.factoryEvent.date)}<br>دلیل: <b>${summary.factoryEvent.reason||'—'}</b></div>`
+        : journeyStripHtml(summary)
+      }
       ${summary.discrepancies.length ? `<div class="hint alert" style="margin-top:10px;">⚠ ${summary.discrepancies.join(' · ')}</div>` : ''}
     </div>
     <div class="card">
@@ -665,9 +682,10 @@ async function confirmDeleteEvent(id){
   else showToast('خطا در حذف', true);
 }
 function eventDetailText(e){
-  if(e.stage==='send_neginkar') return `نگین‌کار: ${e.neginKar}`;
+  if(e.stage==='send_neginkar') return `خیاط: ${e.neginKar}`;
   if(e.stage==='qc') return e.result==='approved' ? `تایید: ${e.approvedQty} / رد: ${e.rejectedQty}` : `رد شد — ${e.defectNote||'بدون توضیح'}`;
   if(e.stage==='send_shop') return `مغازه: ${e.shop}`;
+  if(e.stage==='send_factory') return `دلیل: ${e.reason||'—'}`;
   if(e.note) return e.note;
   return '—';
 }
@@ -717,18 +735,18 @@ async function submitReceiving(){
 /* ============================ RENDER: SEND TO NEGINKAR ============================ */
 function renderSendNeginkar(){
   return `
-    <div class="topbar"><div><h1>ارسال به نگین‌کار</h1><p>هر بار که جنس برای نگین‌کاری ارسال می‌شود، اینجا ثبت کنید</p></div></div>
+    <div class="topbar"><div><h1>ارسال به خیاط</h1><p>هر بار که جنس برای خیاطی ارسال می‌شود، اینجا ثبت کنید</p></div></div>
     <div class="card">
       <form id="frmSendNk" class="form-grid">
         <div class="field"><label>بارکد آیتم</label><input type="text" name="barcode" class="mono-field" required></div>
         <div class="field">
-          <label>نگین‌کار</label>
+          <label>خیاط</label>
           <select name="neginKar" id="nkSelect" required>
             <option value="">— انتخاب کنید —</option>
             ${DB.neginkars.map(n=>`<option value="${n}">${n}</option>`).join('')}
           </select>
           <div class="add-inline">
-            <input type="text" id="newNkName" placeholder="نگین‌کار جدید…">
+            <input type="text" id="newNkName" placeholder="خیاط جدید…">
             <button type="button" onclick="quickAddNeginkar()">افزودن</button>
           </div>
         </div>
@@ -781,7 +799,7 @@ async function submitSendNeginkar(){
 /* ============================ RENDER: RETURN FROM NEGINKAR ============================ */
 function renderReturnNeginkar(){
   return `
-    <div class="topbar"><div><h1>برگشت از نگین‌کار</h1><p>وقتی جنس از نگین‌کار برمی‌گردد، تعداد را اینجا ثبت کنید</p></div></div>
+    <div class="topbar"><div><h1>برگشت از خیاط</h1><p>وقتی جنس از خیاط برمی‌گردد، تعداد را اینجا ثبت کنید</p></div></div>
     <div class="card">
       <form id="frmRetNk" class="form-grid">
         <div class="field"><label>بارکد آیتم</label><input type="text" name="barcode" class="mono-field" required></div>
@@ -802,9 +820,9 @@ function bindReturnHint(){
     if(!bc){ box.style.display='none'; return; }
     const r = maxRound(bc);
     box.style.display='block';
-    if(!r){ box.innerHTML = `هیچ ارسالی برای این بارکد ثبت نشده — ابتدا باید در فرم «ارسال به نگین‌کار» ثبت شود.`; return; }
+    if(!r){ box.innerHTML = `هیچ ارسالی برای این بارکد ثبت نشده — ابتدا باید در فرم «ارسال به خیاط» ثبت شود.`; return; }
     const send = DB.events.find(e=>e.barcode===bc && e.stage==='send_neginkar' && e.round===r);
-    box.innerHTML = `آخرین ارسال (دور ${r}): <b>${send.quantity}</b> عدد به نگین‌کار «${send.neginKar}» — این برگشت برای همین دور ثبت می‌شود.`;
+    box.innerHTML = `آخرین ارسال (دور ${r}): <b>${send.quantity}</b> عدد به خیاط «${send.neginKar}» — این برگشت برای همین دور ثبت می‌شود.`;
   };
   inp.addEventListener('input', update);
 }
@@ -825,7 +843,7 @@ async function submitReturnNeginkar(){
 /* ============================ RENDER: QC ============================ */
 function renderQc(){
   return `
-    <div class="topbar"><div><h1>کنترل کیفیت</h1><p>بررسی کیفیت جنس برگشتی از نگین‌کار</p></div></div>
+    <div class="topbar"><div><h1>کنترل کیفیت</h1><p>بررسی کیفیت جنس برگشتی از خیاط</p></div></div>
     <div class="card">
       <form id="frmQc" class="form-grid">
         <div class="field"><label>بارکد آیتم</label><input type="text" name="barcode" class="mono-field" required></div>
@@ -848,7 +866,7 @@ function bindQcHint(){
     const r = maxRound(bc);
     box.style.display='block';
     const ret = DB.events.find(e=>e.barcode===bc && e.stage==='return_neginkar' && e.round===r);
-    if(!ret){ box.innerHTML = `برگشتی برای این بارکد ثبت نشده — ابتدا فرم «برگشت از نگین‌کار» را پر کنید.`; return; }
+    if(!ret){ box.innerHTML = `برگشتی برای این بارکد ثبت نشده — ابتدا فرم «برگشت از خیاط» را پر کنید.`; return; }
     box.innerHTML = `تعداد برگشتی (دور ${r}): <b>${ret.quantity}</b> — مجموع تایید‌شده و رد‌شده باید با این عدد برابر باشد.`;
   };
   inp.addEventListener('input', update);
@@ -870,6 +888,41 @@ async function submitQc(){
 }
 
 /* ============================ RENDER: SEND TO SHOP ============================ */
+function renderSendFactory(){
+  const log = DB.events.filter(e=>e.stage==='send_factory').sort((a,b)=>b.createdAt-a.createdAt).slice(0,10);
+  return `
+    <div class="topbar"><div><h1>ارسال به کارخانه</h1><p>وقتی جنسی به‌خاطر ایراد (مثلاً نگین خورده) باید به کارخانه برگردونده شود، اینجا ثبت کنید. این مرحله مستقل از QC است و هر وقت لازم باشد قابل استفاده است.</p></div></div>
+    <div class="card">
+      <form id="frmSendFactory" class="form-grid">
+        <div class="field"><label>بارکد آیتم</label><input type="text" name="barcode" class="mono-field" required></div>
+        <div class="field"><label>تعداد ارسالی</label><input type="number" name="quantity" min="1" required></div>
+        <div class="field"><label>تاریخ ارسال</label><input type="date" name="date" required></div>
+        <div class="field"><label>دلیل برگشت (برای اطلاع کارخانه)</label><input type="text" name="reason" placeholder="مثلاً: نگین خورده" required></div>
+      </form>
+      <div class="form-actions"><button class="btn-primary" onclick="submitSendFactory()">ثبت ارسال به کارخانه</button></div>
+    </div>
+    <div class="card">
+      <h2 class="sec-title"><span class="bar"></span>آخرین موارد ارسال‌شده به کارخانه</h2>
+      ${log.length===0 ? `<div class="empty-state">هنوز چیزی ثبت نشده</div>` :
+        `<table><thead><tr><th>بارکد</th><th>تعداد</th><th>تاریخ</th><th>دلیل</th><th></th></tr></thead><tbody>
+        ${log.map(e=>`<tr><td><span class="barcode-chip mono">${e.barcode}</span></td><td class="mono">${e.quantity}</td><td>${fmtDate(e.date)}</td><td>${e.reason||'—'}</td><td><button class="del-btn" onclick="confirmDeleteEvent('${e.id}')" title="حذف">✕</button></td></tr>`).join('')}
+        </tbody></table>`}
+    </div>
+  `;
+}
+async function submitSendFactory(){
+  const f = document.getElementById('frmSendFactory');
+  const barcode = f.barcode.value.trim();
+  const quantity = f.quantity.value;
+  const date = f.date.value;
+  const reason = f.reason.value.trim();
+  if(!barcode || !quantity || !date || !reason){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
+  const ev = { id:uid(), barcode, stage:'send_factory', quantity:Number(quantity), date, reason, createdAt:Date.now() };
+  const ok = await addEvent(ev);
+  if(ok){ showToast('ارسال به کارخانه ثبت شد'); navigate('send_factory'); }
+  else showToast('خطا در ذخیره‌سازی', true);
+}
+
 function renderSendShop(){
   return `
     <div class="topbar"><div><h1>ارسال به مغازه</h1><p>پس از تایید کیفیت، جنس به مغازه ارسال می‌شود</p></div></div>
@@ -966,6 +1019,7 @@ function render(){
     case 'send_neginkar': html = renderSendNeginkar(); break;
     case 'return_neginkar': html = renderReturnNeginkar(); break;
     case 'qc': html = renderQc(); break;
+    case 'send_factory': html = renderSendFactory(); break;
     case 'send_shop': html = renderSendShop(); break;
     case 'receive_shop': html = renderReceiveShop(); break;
     default: html = renderDashboard();
@@ -997,6 +1051,7 @@ window.submitReceiving = submitReceiving;
 window.quickAddNeginkar = quickAddNeginkar;
 window.submitSendNeginkar = submitSendNeginkar;
 window.quickAddShop = quickAddShop;
+window.submitSendFactory = submitSendFactory;
 window.submitSendShop = submitSendShop;
 window.submitReturnNeginkar = submitReturnNeginkar;
 window.submitQc = submitQc;
