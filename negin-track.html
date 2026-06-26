@@ -172,6 +172,12 @@
     line-height:1; font-family:inherit;
   }
   .del-btn:hover{background:var(--rose); color:#fff;}
+  .confirm-btn{
+    background:none; border:1px solid var(--line); border-radius:7px;
+    width:30px; height:26px; font-size:13px; cursor:pointer; line-height:1; font-family:inherit;
+  }
+  .confirm-btn.yes{border-color:var(--sage); background:var(--sage-soft);}
+  .confirm-btn.no{border-color:var(--rose); background:var(--rose-soft);}
   .empty-state{text-align:center; padding:30px 10px; color:var(--ink-soft); font-size:13px;}
 
   /* Forms */
@@ -812,6 +818,13 @@ async function confirmDeleteEvent(id){
   if(ok){ showToast('حذف شد'); render(); }
   else showToast('خطا در حذف', true);
 }
+async function toggleFactoryConfirmed(id){
+  const ev = DB.events.find(e=>e.id===id && e.stage==='send_factory');
+  if(!ev) return;
+  ev.confirmed = !ev.confirmed;
+  const ok = await storageSet(KEYS.events, DB.events);
+  if(ok) render(); else showToast('خطا در ذخیره‌سازی', true);
+}
 function eventDetailText(e){
   let base = '';
   if(e.stage==='send_neginkar') base = `خیاط: ${e.neginKar}`;
@@ -887,8 +900,8 @@ function renderReceiving(){
     <div class="card">
       <h2 class="sec-title"><span class="bar"></span>آخرین موارد ثبت‌شده</h2>
       ${log.length===0 ? `<div class="empty-state">هنوز چیزی ثبت نشده</div>` :
-        `<table><thead><tr><th>نوع محصول</th><th>تعداد</th><th>تاریخ</th><th>توضیحات</th><th>مسئول</th><th></th></tr></thead><tbody>
-        ${log.map(r=>`<tr><td>${r.productType}</td><td class="mono">${r.quantity}</td><td>${fmtDate(r.date)}</td><td>${r.note||'—'}</td><td>${r.responsible||'—'}</td><td><button class="del-btn" onclick="confirmDeleteReceiving('${r.id}')" title="حذف">✕</button></td></tr>`).join('')}
+        `<table><thead><tr><th>نوع محصول</th><th>تعداد</th><th>تاریخ</th><th>توضیحات</th><th>مسئول</th><th>تحویل</th><th></th></tr></thead><tbody>
+        ${log.map(r=>`<tr><td>${r.productType}</td><td class="mono">${r.quantity}</td><td>${fmtDate(r.date)}</td><td>${r.note||'—'}</td><td>${r.responsible||'—'}</td><td><button class="confirm-btn ${r.confirmed?'yes':'no'}" onclick="toggleReceivingConfirmed('${r.id}')" title="تحویل گرفته شد؟ برای تغییر بزن">${r.confirmed?'✅':'❌'}</button></td><td><button class="del-btn" onclick="confirmDeleteReceiving('${r.id}')" title="حذف">✕</button></td></tr>`).join('')}
         </tbody></table>`}
     </div>
   `;
@@ -899,6 +912,13 @@ async function confirmDeleteReceiving(id){
   if(ok){ showToast('حذف شد'); navigate('receiving'); }
   else showToast('خطا در حذف', true);
 }
+async function toggleReceivingConfirmed(id){
+  const rec = DB.receiving.find(r=>r.id===id);
+  if(!rec) return;
+  rec.confirmed = !rec.confirmed;
+  const ok = await storageSet(KEYS.receiving, DB.receiving);
+  if(ok) render(); else showToast('خطا در ذخیره‌سازی', true);
+}
 async function submitReceiving(){
   const f = document.getElementById('frmReceiving');
   const productType = f.productType.value.trim();
@@ -907,7 +927,7 @@ async function submitReceiving(){
   const note = f.note.value.trim();
   const responsible = f.responsible.value;
   if(!productType || !quantity || !date || !responsible){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
-  const rec = { id:uid(), productType, quantity:Number(quantity), date, note, responsible, createdAt:Date.now() };
+  const rec = { id:uid(), productType, quantity:Number(quantity), date, note, responsible, confirmed:false, createdAt:Date.now() };
   const ok = await addReceiving(rec);
   if(ok){ showToast('دریافت با موفقیت ثبت شد'); navigate('receiving'); }
   else showToast('خطا در ذخیره‌سازی', true);
@@ -1168,8 +1188,8 @@ function renderSendFactory(){
     <div class="card">
       <h2 class="sec-title"><span class="bar"></span>آخرین موارد ارسال‌شده به کارخانه</h2>
       ${log.length===0 ? `<div class="empty-state">هنوز چیزی ثبت نشده</div>` :
-        `<table><thead><tr><th>بارکد</th><th>تعداد</th><th>تاریخ</th><th>دلیل</th><th>مسئول</th><th></th></tr></thead><tbody>
-        ${log.map(e=>`<tr><td><span class="barcode-chip mono">${e.barcode}</span></td><td class="mono">${e.quantity}</td><td>${fmtDate(e.date)}</td><td>${e.reason||'—'}</td><td>${e.responsible||'—'}</td><td><button class="del-btn" onclick="confirmDeleteEvent('${e.id}')" title="حذف">✕</button></td></tr>`).join('')}
+        `<table><thead><tr><th>بارکد</th><th>تعداد</th><th>تاریخ</th><th>دلیل</th><th>مسئول</th><th>تحویل</th><th></th></tr></thead><tbody>
+        ${log.map(e=>`<tr><td><span class="barcode-chip mono">${e.barcode}</span></td><td class="mono">${e.quantity}</td><td>${fmtDate(e.date)}</td><td>${e.reason||'—'}</td><td>${e.responsible||'—'}</td><td><button class="confirm-btn ${e.confirmed?'yes':'no'}" onclick="toggleFactoryConfirmed('${e.id}')" title="تحویل گرفته شد؟ برای تغییر بزن">${e.confirmed?'✅':'❌'}</button></td><td><button class="del-btn" onclick="confirmDeleteEvent('${e.id}')" title="حذف">✕</button></td></tr>`).join('')}
         </tbody></table>`}
     </div>
   `;
@@ -1182,7 +1202,7 @@ async function submitSendFactory(){
   const reason = f.reason.value.trim();
   const responsible = f.responsible.value;
   if(!barcode || !quantity || !date || !reason || !responsible){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
-  const ev = { id:uid(), barcode, stage:'send_factory', quantity:Number(quantity), date, reason, responsible, createdAt:Date.now() };
+  const ev = { id:uid(), barcode, stage:'send_factory', quantity:Number(quantity), date, reason, responsible, confirmed:false, createdAt:Date.now() };
   const ok = await addEvent(ev);
   if(ok){ showToast('ارسال به کارخانه ثبت شد'); navigate('send_factory'); }
   else showToast('خطا در ذخیره‌سازی', true);
@@ -1339,6 +1359,8 @@ window.confirmIdentity = confirmIdentity;
 window.quickAddIdentityOption = quickAddIdentityOption;
 window.submitChatMessage = submitChatMessage;
 window.confirmDeleteChat = confirmDeleteChat;
+window.toggleReceivingConfirmed = toggleReceivingConfirmed;
+window.toggleFactoryConfirmed = toggleFactoryConfirmed;
 
 init();
 </script>
