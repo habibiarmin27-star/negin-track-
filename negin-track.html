@@ -178,6 +178,19 @@
   }
   .confirm-btn.yes{border-color:var(--sage); background:var(--sage-soft);}
   .confirm-btn.no{border-color:var(--rose); background:var(--rose-soft);}
+
+  /* Report page */
+  .report-tabs{display:flex; gap:8px; flex-wrap:wrap;}
+  .rtab{
+    background:var(--sand-2); border:1px solid var(--line); border-radius:9px;
+    padding:8px 16px; font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; color:var(--ink-soft);
+  }
+  .rtab.active{background:var(--teal); border-color:var(--teal); color:#fff;}
+  .bar-row{display:flex; align-items:center; gap:10px; margin-bottom:12px;}
+  .bar-label{width:90px; flex-shrink:0; font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .bar-track{flex:1; background:var(--sand-2); border-radius:8px; height:18px; overflow:hidden;}
+  .bar-fill{height:100%; background:var(--gold); border-radius:8px;}
+  .bar-value{width:46px; text-align:left; font-size:13px; font-weight:700; color:var(--teal-2);}
   .empty-state{text-align:center; padding:30px 10px; color:var(--ink-soft); font-size:13px;}
 
   /* Forms */
@@ -533,6 +546,60 @@ function getItemSummary(barcode){
   return { barcode, round:r, send, ret, qc, sendShop, recvShop, factoryEvent, status, statusType, currentStageKey, discrepancies, evs };
 }
 
+/* ============================ REPORT: TAILOR PERFORMANCE ============================ */
+function getJalaliYM(dateLike){
+  try{
+    const d = (dateLike instanceof Date) ? dateLike : new Date(dateLike);
+    if(isNaN(d)) return {year:0, month:0};
+    const parts = new Intl.DateTimeFormat('en-US-u-ca-persian', {year:'numeric', month:'numeric'}).formatToParts(d);
+    const year = Number(parts.find(p=>p.type==='year').value);
+    const month = Number(parts.find(p=>p.type==='month').value);
+    return {year, month};
+  }catch(e){ return {year:0, month:0}; }
+}
+function makeDateFilter(mode){
+  const now = getJalaliYM(new Date());
+  return function(e){
+    if(mode==='all') return true;
+    const ym = getJalaliYM(e.date);
+    if(mode==='year') return ym.year===now.year;
+    if(mode==='month') return ym.year===now.year && ym.month===now.month;
+    return true;
+  };
+}
+function computeTailorStats(filterFn){
+  const stats = {};
+  function ensure(name){
+    if(!stats[name]) stats[name] = { sent:0, returned:0, approved:0, rejected:0 };
+    return stats[name];
+  }
+  const tailorByBarcodeRound = {};
+  DB.events.filter(e=>e.stage==='send_neginkar').forEach(e=>{
+    tailorByBarcodeRound[`${e.barcode}_${e.round}`] = e.neginKar;
+  });
+  DB.events.forEach(e=>{
+    if(!filterFn(e)) return;
+    if(e.stage==='send_neginkar'){
+      ensure(e.neginKar).sent += Number(e.quantity)||0;
+    } else if(e.stage==='return_neginkar'){
+      const tailor = tailorByBarcodeRound[`${e.barcode}_${e.round}`];
+      if(tailor) ensure(tailor).returned += Number(e.quantity)||0;
+    } else if(e.stage==='qc'){
+      const tailor = tailorByBarcodeRound[`${e.barcode}_${e.round}`];
+      if(tailor){
+        const s = ensure(tailor);
+        s.approved += Number(e.approvedQty)||0;
+        s.rejected += Number(e.rejectedQty)||0;
+      }
+    }
+  });
+  return stats;
+}
+function setReportMode(mode){
+  reportMode = mode;
+  render();
+}
+
 function dashboardStats(){
   const codes = allBarcodes();
   let inNeginkar=0, waitingQc=0, rejected=0, done=0;
@@ -555,6 +622,7 @@ const ROUTES = [
   { key:'dashboard', label:'داشبورد', ico:'◧', group:'main' },
   { key:'lookup', label:'پیگیری بارکد', ico:'⌕', group:'main' },
   { key:'chat', label:'چت تیم', ico:'💬', group:'main' },
+  { key:'report', label:'گزارش خیاط‌ها', ico:'📊', group:'main' },
   { key:'receiving', label:'دریافت از کارخونه', ico:'①', group:'forms' },
   { key:'send_neginkar', label:'ارسال به خیاط', ico:'②', group:'forms' },
   { key:'return_neginkar', label:'برگشت از خیاط', ico:'③', group:'forms' },
@@ -565,6 +633,7 @@ const ROUTES = [
 ];
 
 let state = { view:'dashboard', lookupBarcode:'' };
+let reportMode = 'month';
 
 function showToast(msg, isError){
   const t = document.getElementById('toast');
@@ -835,6 +904,49 @@ function eventDetailText(e){
   else base = '—';
   if(e.responsible) base += ` · مسئول: ${e.responsible}`;
   return base;
+}
+
+/* ============================ RENDER: TAILOR REPORT ============================ */
+function renderReport(){
+  const stats = computeTailorStats(makeDateFilter(reportMode));
+  const rows = Object.entries(stats).map(([name, s])=>{
+    const totalQc = s.approved + s.rejected;
+    const defectRate = totalQc>0 ? Math.round((s.rejected/totalQc)*100) : null;
+    return { name, ...s, defectRate };
+  }).sort((a,b)=> b.sent - a.sent);
+  const maxSent = Math.max(1, ...rows.map(r=>r.sent));
+  const modeLabel = {month:'این ماه', year:'امسال', all:'همه‌ی زمان'}[reportMode];
+
+  return `
+    <div class="topbar"><div><h1>گزارش عملکرد خیاط‌ها</h1><p>مقایسه حجم کار و نرخ ایراد هر خیاط — ${modeLabel}</p></div></div>
+    <div class="card">
+      <div class="report-tabs">
+        <button class="rtab ${reportMode==='month'?'active':''}" onclick="setReportMode('month')">این ماه</button>
+        <button class="rtab ${reportMode==='year'?'active':''}" onclick="setReportMode('year')">امسال</button>
+        <button class="rtab ${reportMode==='all'?'active':''}" onclick="setReportMode('all')">همه‌ی زمان</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2 class="sec-title"><span class="bar"></span>حجم کار (تعداد ارسالی به هرکدوم)</h2>
+      ${rows.length===0 ? `<div class="empty-state">داده‌ای برای این بازه ثبت نشده</div>` :
+        rows.map(r=>`
+          <div class="bar-row">
+            <div class="bar-label">${escapeHtml(r.name)}</div>
+            <div class="bar-track"><div class="bar-fill" style="width:${Math.max(4,(r.sent/maxSent)*100)}%"></div></div>
+            <div class="bar-value mono">${r.sent}</div>
+          </div>
+        `).join('')
+      }
+    </div>
+    <div class="card">
+      <h2 class="sec-title"><span class="bar"></span>جدول کامل</h2>
+      ${rows.length===0 ? `<div class="empty-state">داده‌ای برای این بازه ثبت نشده</div>` :
+        `<table><thead><tr><th>خیاط</th><th>ارسالی</th><th>برگشتی</th><th>تایید</th><th>رد</th><th>نرخ ایراد</th></tr></thead><tbody>
+        ${rows.map(r=>`<tr><td>${escapeHtml(r.name)}</td><td class="mono">${r.sent}</td><td class="mono">${r.returned}</td><td class="mono">${r.approved}</td><td class="mono">${r.rejected}</td><td class="mono">${r.defectRate==null?'—':r.defectRate+'%'}</td></tr>`).join('')}
+        </tbody></table>`
+      }
+    </div>
+  `;
 }
 
 /* ============================ RENDER: CHAT ============================ */
@@ -1306,6 +1418,7 @@ function render(){
     case 'dashboard': html = renderDashboard(); break;
     case 'lookup': html = renderLookup(); break;
     case 'chat': html = renderChat(); break;
+    case 'report': html = renderReport(); break;
     case 'receiving': html = renderReceiving(); break;
     case 'send_neginkar': html = renderSendNeginkar(); break;
     case 'return_neginkar': html = renderReturnNeginkar(); break;
@@ -1361,6 +1474,7 @@ window.submitChatMessage = submitChatMessage;
 window.confirmDeleteChat = confirmDeleteChat;
 window.toggleReceivingConfirmed = toggleReceivingConfirmed;
 window.toggleFactoryConfirmed = toggleFactoryConfirmed;
+window.setReportMode = setReportMode;
 
 init();
 </script>
