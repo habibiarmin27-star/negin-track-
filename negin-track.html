@@ -348,6 +348,7 @@
     .search-box{min-width:0;}
   }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 <div id="identityBar" class="identity-bar"></div>
@@ -678,6 +679,60 @@ function needsAttention(){
   return allBarcodes().map(getItemSummary).filter(s => s.statusType==='rejected' || s.discrepancies.length>0 || s.currentStageKey==='return_neginkar');
 }
 
+/* ============================ EXCEL EXPORT ============================ */
+function exportToExcel(){
+  if(typeof XLSX === 'undefined'){ showToast('کتابخانه اکسل لود نشده — اتصال اینترنت را چک کن و دوباره تلاش کن', true); return; }
+  if(DB.receiving.length===0 && DB.events.length===0){ showToast('هنوز داده‌ای برای خروجی ثبت نشده', true); return; }
+
+  const wb = XLSX.utils.book_new();
+
+  if(DB.receiving.length){
+    const rows = [...DB.receiving].sort((a,b)=>a.createdAt-b.createdAt).map(r=>({
+      'نوع/کد محصول': r.productType,
+      'تعداد': r.quantity,
+      'تاریخ': fmtDate(r.date),
+      'توضیحات': r.note||'',
+      'مسئول': r.responsible||'',
+      'تحویل گرفته شد': r.confirmed ? 'بله' : 'خیر',
+      'عکس طرح ثبت شده': r.hasPhoto ? 'بله' : 'خیر'
+    }));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'دریافت از کارخونه');
+  }
+
+  const stageDefs = [
+    {stage:'send_neginkar', name:'ارسال به خیاط'},
+    {stage:'return_neginkar', name:'برگشت از خیاط'},
+    {stage:'qc', name:'کنترل کیفیت'},
+    {stage:'send_factory', name:'ارسال به کارخانه'},
+    {stage:'send_shop', name:'ارسال به مغازه'},
+    {stage:'receive_shop', name:'دریافت در مغازه'}
+  ];
+  stageDefs.forEach(sd=>{
+    const evs = DB.events.filter(e=>e.stage===sd.stage).sort((a,b)=>a.createdAt-b.createdAt);
+    if(!evs.length) return;
+    const rows = evs.map(e=>{
+      const row = { 'بارکد': e.barcode };
+      if(e.round) row['دور'] = e.round;
+      if(e.neginKar) row['خیاط'] = e.neginKar;
+      if(e.quantity!=null) row['تعداد'] = e.quantity;
+      if(e.approvedQty!=null) row['تایید شده'] = e.approvedQty;
+      if(e.rejectedQty!=null) row['رد شده'] = e.rejectedQty;
+      if(e.defectNote) row['توضیح ایراد'] = e.defectNote;
+      if(e.shop) row['مغازه'] = e.shop;
+      if(e.reason) row['دلیل'] = e.reason;
+      row['تاریخ'] = fmtDate(e.date);
+      row['مسئول'] = e.responsible || '';
+      if(e.confirmed!=null) row['تحویل گرفته شد'] = e.confirmed ? 'بله' : 'خیر';
+      return row;
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), sd.name);
+  });
+
+  const todayStr = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `negin-track-export-${todayStr}.xlsx`);
+  showToast('فایل اکسل دانلود شد');
+}
+
 /* ============================ UI STATE / ROUTER ============================ */
 const ROUTES = [
   { key:'dashboard', label:'داشبورد', ico:'◧', group:'main' },
@@ -888,6 +943,7 @@ function renderDashboard(){
         <p>وضعیت کلی جنس‌ها از انبار تا مغازه</p>
       </div>
       ${quickSearchHtml()}
+      <button class="link-btn" onclick="exportToExcel()">📥 خروجی اکسل</button>
     </div>
 
     <div class="stat-grid">
@@ -1766,6 +1822,7 @@ window.showRowActions = showRowActions;
 window.startEdit = startEdit;
 window.startDelete = startDelete;
 window.cancelEdit = cancelEdit;
+window.exportToExcel = exportToExcel;
 
 init();
 </script>
