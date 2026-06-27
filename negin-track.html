@@ -294,6 +294,33 @@
   }
   .mnav-item .unread-dot{ border-color:var(--teal); }
 
+  /* Login screen */
+  body.not-authed .app, body.not-authed #mnav, body.not-authed #identityBar{ display:none !important; }
+  .login-screen{
+    min-height:100vh; display:flex; align-items:center; justify-content:center;
+    background:var(--sand); padding:20px;
+  }
+  .login-box{
+    background:#fff; border-radius:18px; padding:32px 26px; max-width:360px; width:100%;
+    box-shadow:0 20px 50px rgba(0,0,0,0.12); text-align:center;
+  }
+  .login-box .dot{
+    width:14px;height:14px;border-radius:50%; background:var(--gold); display:inline-block;
+    box-shadow:0 0 0 5px rgba(199,154,60,0.18); margin-bottom:10px;
+  }
+  .login-box h1{font-size:19px; font-weight:800; margin:6px 0 4px;}
+  .login-box p{font-size:12.5px; color:var(--ink-soft); margin:0 0 20px;}
+  .login-box .field{margin-bottom:14px; text-align:right;}
+  .login-box input{
+    width:100%; padding:11px 14px; border:1px solid var(--line); border-radius:10px;
+    font-family:inherit; font-size:14px; direction:ltr; text-align:left;
+  }
+  .login-box .btn-primary{width:100%; padding:12px; font-size:14.5px; margin-top:4px;}
+  .login-error{color:var(--rose); font-size:12.5px; margin-top:10px; min-height:16px;}
+
+  /* Admin: add team member account */
+  .admin-card{border:1px dashed var(--gold); background:var(--gold-soft);}
+
   /* Identity modal */
   .modal-overlay{
     position:fixed; inset:0; background:rgba(33,29,23,0.55);
@@ -350,7 +377,8 @@
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
-<body>
+<body class="not-authed">
+<div id="loginRoot"><div class="login-screen"><div class="login-box"><span class="dot"></span><h1>تار و نگین</h1><p>در حال بررسی ورود…</p></div></div></div>
 <div id="identityBar" class="identity-bar"></div>
 <div class="app">
   <nav class="nav" id="nav"></nav>
@@ -362,8 +390,9 @@
 
 <script type="module">
 /* ============================ FIREBASE SETUP ============================ */
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAgrG61bTmTLgyh1SWmMfVDD2WsH1DBdp4",
@@ -376,7 +405,12 @@ const firebaseConfig = {
 };
 const fbApp = initializeApp(firebaseConfig);
 const db = getFirestore(fbApp);
+const auth = getAuth(fbApp);
 const COLLECTION = 'appdata';
+const AUTH_DOMAIN_SUFFIX = '@negin-track.local';
+const ADMIN_EMAIL = 'habibiarmin27' + AUTH_DOMAIN_SUFFIX;
+function usernameToEmail(u){ return u.trim().toLowerCase().replace(/\s+/g,'') + AUTH_DOMAIN_SUFFIX; }
+function emailToUsername(email){ return (email||'').replace(AUTH_DOMAIN_SUFFIX, ''); }
 
 /* ============================ DATA LAYER ============================ */
 const KEYS = {
@@ -840,10 +874,7 @@ function escapeHtml(s){
 
 /* ============================ DEVICE IDENTITY (local only — convenience labeling, not a permission system) ============================ */
 function getMyIdentity(){
-  try{ return localStorage.getItem('myIdentity') || ''; }catch(e){ return ''; }
-}
-function setMyIdentity(name){
-  try{ localStorage.setItem('myIdentity', name); }catch(e){}
+  return (auth.currentUser && auth.currentUser.email) ? emailToUsername(auth.currentUser.email) : '';
 }
 function getLastSeenChat(){
   try{ return Number(localStorage.getItem('lastSeenChat')||0); }catch(e){ return 0; }
@@ -885,7 +916,7 @@ function renderNav(){
   const mine = getMyIdentity();
   const bar = document.getElementById('identityBar');
   if(bar){
-    bar.innerHTML = `<span onclick="openIdentityModal(true)">👤 ${mine ? escapeHtml(mine) : 'مشخص نشده'} <span class="identity-bar-change">(تغییر)</span></span>`;
+    bar.innerHTML = `<span onclick="openIdentityModal()">👤 ${mine ? escapeHtml(mine) : ''} <span class="identity-bar-change">(حساب کاربری)</span></span>`;
   }
   nav.innerHTML = `
     <div class="nav-brand">
@@ -1213,7 +1244,7 @@ async function submitChatMessage(){
   }
 
   const sender = getMyIdentity();
-  if(!sender){ showToast('ابتدا خودتان را معرفی کنید', true); openIdentityModal(false); return; }
+  if(!sender){ showToast('ابتدا وارد حساب شوید', true); openIdentityModal(); return; }
   inp.value = '';
   const ok = await sendChatMessage(text, sender);
   if(!ok) showToast('خطا در ارسال پیام', true);
@@ -1381,50 +1412,67 @@ function responsibleFieldHtml(overrideValue){
   `;
 }
 
-/* ============================ IDENTITY MODAL ============================ */
-function renderIdentityModalHtml(canCancel){
+/* ============================ IDENTITY MODAL (now account info + logout + admin) ============================ */
+function renderIdentityModalHtml(){
   const mine = getMyIdentity();
+  const isAdmin = auth.currentUser && auth.currentUser.email === ADMIN_EMAIL;
   return `
     <div class="modal-overlay">
       <div class="modal-box">
-        <h2>شما کی هستید؟</h2>
-        <p class="modal-sub">این فقط برای مشخص شدن «مسئول» هر مرحله و فرستنده پیام‌های چت است — دسترسی همه به همه‌چیز کامل و بدون محدودیت باقی می‌ماند و هرکس می‌تواند جای هرکس دیگری را هم انتخاب کند.</p>
-        <select id="identitySelect" name="identitySelect">
-          <option value="">— انتخاب کنید —</option>
-          ${DB.team.map(t=>`<option value="${t}" ${t===mine?'selected':''}>${t}</option>`).join('')}
-        </select>
-        <div class="add-inline">
-          <input type="text" id="newIdentityName" placeholder="نفر جدید…">
-          <button type="button" onclick="quickAddIdentityOption()">افزودن</button>
-        </div>
-        <div class="form-actions" style="margin-top:14px;">
-          <button class="btn-primary" onclick="confirmIdentity()">تایید</button>
-          ${canCancel ? `<button class="link-btn" onclick="closeIdentityModal()">بستن</button>` : ''}
+        <h2>حساب کاربری</h2>
+        <p class="modal-sub">شما با یوزرنیم «${escapeHtml(mine)}» وارد شده‌اید.</p>
+        ${isAdmin ? `
+          <div class="admin-card" style="border-radius:10px; padding:14px; margin-bottom:16px; text-align:right;">
+            <div style="font-weight:700; font-size:13px; margin-bottom:10px;">➕ افزودن عضو جدید تیم</div>
+            <input type="text" id="newMemberUsername" placeholder="یوزرنیم (انگلیسی، بدون فاصله)" style="margin-bottom:8px; width:100%; padding:9px 12px; border:1px solid var(--line); border-radius:8px; direction:ltr; font-family:inherit;">
+            <input type="password" id="newMemberPassword" placeholder="رمز عبور (حداقل ۶ کاراکتر)" style="margin-bottom:8px; width:100%; padding:9px 12px; border:1px solid var(--line); border-radius:8px; direction:ltr; font-family:inherit;">
+            <button class="btn-primary" style="width:100%;" onclick="adminCreateMember()">ساخت حساب</button>
+            <div id="adminCreateMsg" style="font-size:12px; margin-top:8px;"></div>
+          </div>
+        ` : ''}
+        <div class="form-actions" style="margin-top:10px; justify-content:center;">
+          <button class="link-btn" onclick="doLogout()">خروج از حساب</button>
+          <button class="link-btn" onclick="closeIdentityModal()">بستن</button>
         </div>
       </div>
     </div>
   `;
 }
-function openIdentityModal(canCancel){
-  document.getElementById('identityModalRoot').innerHTML = renderIdentityModalHtml(canCancel);
+function openIdentityModal(){
+  document.getElementById('identityModalRoot').innerHTML = renderIdentityModalHtml();
 }
 function closeIdentityModal(){
   document.getElementById('identityModalRoot').innerHTML = '';
 }
-function quickAddIdentityOption(){
-  const inp = document.getElementById('newIdentityName');
-  const name = inp.value.trim();
-  if(!name) return;
-  addTeamMember(name).then(()=>{ inp.value=''; addOptionToSelect('identitySelect', name); });
+async function adminCreateMember(){
+  const uEl = document.getElementById('newMemberUsername');
+  const pEl = document.getElementById('newMemberPassword');
+  const msgEl = document.getElementById('adminCreateMsg');
+  const u = uEl.value.trim();
+  const p = pEl.value;
+  if(!u || !p){ msgEl.style.color = 'var(--rose)'; msgEl.textContent = 'یوزرنیم و رمز را وارد کن'; return; }
+  if(p.length < 6){ msgEl.style.color = 'var(--rose)'; msgEl.textContent = 'رمز باید حداقل ۶ کاراکتر باشد'; return; }
+  msgEl.style.color = 'var(--ink-soft)'; msgEl.textContent = 'در حال ساخت حساب…';
+  try{
+    const secondaryApp = initializeApp(firebaseConfig, 'secondary-' + Date.now());
+    const secondaryAuth = getAuth(secondaryApp);
+    await createUserWithEmailAndPassword(secondaryAuth, usernameToEmail(u), p);
+    await signOut(secondaryAuth);
+    await deleteApp(secondaryApp);
+    await addTeamMember(u);
+    msgEl.style.color = 'var(--sage)';
+    msgEl.textContent = `حساب «${u}» ساخته شد ✓`;
+    uEl.value=''; pEl.value='';
+  }catch(e){
+    msgEl.style.color = 'var(--rose)';
+    if(e.code === 'auth/email-already-in-use') msgEl.textContent = 'این یوزرنیم قبلاً استفاده شده';
+    else if(e.code === 'auth/weak-password') msgEl.textContent = 'رمز خیلی ساده است';
+    else msgEl.textContent = 'خطا: ' + (e.message||'نامشخص');
+  }
 }
-function confirmIdentity(){
-  const sel = document.getElementById('identitySelect');
-  const name = sel.value;
-  if(!name){ showToast('لطفاً یک نام انتخاب کنید', true); return; }
-  setMyIdentity(name);
+async function doLogout(){
   closeIdentityModal();
-  render();
-  showToast(`شما به‌عنوان «${name}» شناخته می‌شوید`);
+  await signOut(auth);
 }
 function bindBarcodeRoundHint(){
   const inp = document.querySelector('#frmSendNk [name="barcode"]');
@@ -1797,13 +1845,55 @@ function render(){
 }
 
 /* ============================ INIT ============================ */
-async function init(){
-  document.getElementById('main').innerHTML = `<div class="empty-state" style="padding-top:60px;">در حال بارگذاری…</div>`;
-  await loadAll();
-  render();
-  if(!getMyIdentity()) openIdentityModal(false);
-  startChatListener();
+/* ============================ LOGIN SCREEN ============================ */
+function renderLoginScreen(){
+  return `
+    <div class="login-screen">
+      <div class="login-box">
+        <span class="dot"></span>
+        <h1>تار و نگین</h1>
+        <p>برای ورود، یوزرنیم و رمزت رو وارد کن</p>
+        <div class="field"><input id="loginUsername" type="text" placeholder="یوزرنیم" autocapitalize="off" autocorrect="off"></div>
+        <div class="field"><input id="loginPassword" type="password" placeholder="رمز عبور" onkeydown="if(event.key==='Enter'){submitLogin();}"></div>
+        <button class="btn-primary" onclick="submitLogin()">ورود</button>
+        <div class="login-error" id="loginError"></div>
+      </div>
+    </div>
+  `;
 }
+async function submitLogin(){
+  const u = document.getElementById('loginUsername').value.trim();
+  const p = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  if(!u || !p){ errEl.textContent = 'یوزرنیم و رمز را وارد کن'; return; }
+  try{
+    await signInWithEmailAndPassword(auth, usernameToEmail(u), p);
+  }catch(e){
+    if(['auth/invalid-credential','auth/wrong-password','auth/user-not-found'].includes(e.code)){
+      errEl.textContent = 'یوزرنیم یا رمز اشتباه است';
+    } else {
+      errEl.textContent = 'خطا در ورود: ' + (e.message||'نامشخص');
+    }
+  }
+}
+
+/* ============================ AUTH-GATED INIT ============================ */
+onAuthStateChanged(auth, async (user) => {
+  if(user){
+    document.body.classList.remove('not-authed');
+    document.getElementById('loginRoot').innerHTML = '';
+    document.getElementById('main').innerHTML = `<div class="empty-state" style="padding-top:60px;">در حال بارگذاری…</div>`;
+    await loadAll();
+    const myName = emailToUsername(user.email);
+    if(myName && !DB.team.includes(myName)){ await addTeamMember(myName); }
+    render();
+    startChatListener();
+  } else {
+    document.body.classList.add('not-authed');
+    document.getElementById('loginRoot').innerHTML = renderLoginScreen();
+  }
+});
 
 // Expose functions referenced by inline onclick="" handlers (module scope is not global)
 window.navigateLookup = navigateLookup;
@@ -1823,8 +1913,9 @@ window.confirmDeleteReceiving = confirmDeleteReceiving;
 window.confirmDeleteEvent = confirmDeleteEvent;
 window.openIdentityModal = openIdentityModal;
 window.closeIdentityModal = closeIdentityModal;
-window.confirmIdentity = confirmIdentity;
-window.quickAddIdentityOption = quickAddIdentityOption;
+window.adminCreateMember = adminCreateMember;
+window.doLogout = doLogout;
+window.submitLogin = submitLogin;
 window.submitChatMessage = submitChatMessage;
 window.confirmDeleteChat = confirmDeleteChat;
 window.toggleReceivingConfirmed = toggleReceivingConfirmed;
@@ -1837,7 +1928,6 @@ window.startDelete = startDelete;
 window.cancelEdit = cancelEdit;
 window.exportToExcel = exportToExcel;
 
-init();
 </script>
 </body>
 </html>
