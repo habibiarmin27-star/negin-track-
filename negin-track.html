@@ -601,6 +601,10 @@ function getItemSummary(barcode){
     status = 'برگشته از خیاط، منتظر کنترل کیفیت'; statusType='wait'; currentStageKey='return_neginkar';
   } else if(send){
     status = `نزد خیاط «${send.neginKar}» (دور ${r})`; statusType='progress'; currentStageKey='send_neginkar';
+    const days = daysSince(send.date);
+    if(days >= STALE_DAYS_THRESHOLD){
+      discrepancies.push(`⏰ ${days} روزه نزد خیاط «${send.neginKar}» مونده و هنوز برنگشته`);
+    }
   } else {
     status = 'بدون رویداد ثبت‌شده'; statusType='wait'; currentStageKey='';
   }
@@ -852,6 +856,15 @@ function hasUnreadChat(){
   const latest = Math.max(...DB.chat.map(m=>m.createdAt));
   return latest > getLastSeenChat();
 }
+
+function daysSince(dateStr){
+  if(!dateStr) return 0;
+  const then = new Date(dateStr);
+  const now = new Date();
+  then.setHours(0,0,0,0); now.setHours(0,0,0,0);
+  return Math.round((now - then) / (1000*60*60*24));
+}
+const STALE_DAYS_THRESHOLD = 5;
 
 function navigate(view){
   if(editingRecord){
