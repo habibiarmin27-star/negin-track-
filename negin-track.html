@@ -179,6 +179,30 @@
   .confirm-btn.yes{border-color:var(--sage); background:var(--sage-soft);}
   .confirm-btn.no{border-color:var(--rose); background:var(--rose-soft);}
 
+  .row-menu-btn{
+    background:var(--sand-2); border:1px solid var(--line); border-radius:7px;
+    width:28px; height:26px; font-size:14px; cursor:pointer; line-height:1; font-family:inherit; color:var(--ink-soft);
+  }
+  .row-actions-menu{
+    position:absolute; background:#fff; border:1px solid var(--line); border-radius:10px;
+    box-shadow:0 8px 24px rgba(0,0,0,0.15); z-index:70; overflow:hidden; min-width:120px;
+  }
+  .row-actions-menu button{
+    display:block; width:100%; text-align:right; padding:10px 14px; border:none; background:none;
+    font-family:inherit; font-size:13px; cursor:pointer; color:var(--ink);
+  }
+  .row-actions-menu button:hover{background:var(--sand-2);}
+  .row-actions-menu button.danger{color:var(--rose);}
+  .edit-banner{
+    background:var(--gold-soft); border:1px solid var(--gold); border-radius:10px;
+    padding:10px 14px; margin-bottom:14px; font-size:13px; color:#6B4E1A;
+    display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;
+  }
+  .edit-banner button{
+    background:none; border:1px solid #6B4E1A; border-radius:7px; padding:5px 12px;
+    font-size:12px; cursor:pointer; font-family:inherit; color:#6B4E1A;
+  }
+
   /* Report page */
   .report-tabs{display:flex; gap:8px; flex-wrap:wrap;}
   .rtab{
@@ -671,12 +695,71 @@ const ROUTES = [
 
 let state = { view:'dashboard', lookupBarcode:'', lookupDesignPhoto:null };
 let reportMode = 'month';
+let editingRecord = null; // { type:'receiving'|'event'|'chat', id, data }
 
 function showToast(msg, isError){
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.className = 'toast show' + (isError? ' error':'');
   setTimeout(()=>{ t.className='toast'; }, 2600);
+}
+
+/* ============================ ROW ACTIONS (tap to reveal edit/delete) ============================ */
+function showRowActions(ev, type, id){
+  ev.stopPropagation();
+  closeRowActions();
+  const btn = ev.currentTarget;
+  const menu = document.createElement('div');
+  menu.className = 'row-actions-menu';
+  menu.id = 'rowActionsMenu';
+  menu.innerHTML = `
+    <button onclick="startEdit('${type}','${id}')">✏️ ویرایش</button>
+    <button onclick="startDelete('${type}','${id}')" class="danger">🗑 حذف</button>
+  `;
+  document.body.appendChild(menu);
+  const rect = btn.getBoundingClientRect();
+  const menuWidth = 130;
+  let left = rect.left + window.scrollX - menuWidth + rect.width;
+  if(left < 8) left = 8;
+  menu.style.top = (rect.bottom + window.scrollY + 4) + 'px';
+  menu.style.left = left + 'px';
+  setTimeout(()=>{ document.addEventListener('click', closeRowActions, {once:true}); }, 0);
+}
+function closeRowActions(){
+  const m = document.getElementById('rowActionsMenu');
+  if(m) m.remove();
+}
+function startDelete(type, id){
+  closeRowActions();
+  if(type==='receiving') confirmDeleteReceiving(id);
+  else if(type==='event') confirmDeleteEvent(id);
+  else if(type==='chat') confirmDeleteChat(id);
+}
+function startEdit(type, id){
+  closeRowActions();
+  if(type==='receiving'){
+    const rec = DB.receiving.find(r=>r.id===id);
+    if(!rec) return;
+    editingRecord = { type:'receiving', id, data:{...rec} };
+    navigate('receiving');
+  } else if(type==='event'){
+    const ev2 = DB.events.find(e=>e.id===id);
+    if(!ev2) return;
+    editingRecord = { type:'event', id, data:{...ev2} };
+    navigate(ev2.stage);
+  } else if(type==='chat'){
+    const m = DB.chat.find(x=>x.id===id);
+    if(!m) return;
+    editingRecord = { type:'chat', id, data:{...m} };
+    navigate('chat');
+  }
+}
+function cancelEdit(){
+  editingRecord = null;
+  render();
+}
+function isEditing(type, stage){
+  return editingRecord && editingRecord.type===type && (!stage || editingRecord.data.stage===stage);
 }
 
 function fmtDate(iso){
@@ -716,6 +799,12 @@ function hasUnreadChat(){
 }
 
 function navigate(view){
+  if(editingRecord){
+    const stillEditingThisView = (editingRecord.type==='event' && editingRecord.data.stage===view) ||
+                                   (editingRecord.type==='receiving' && view==='receiving') ||
+                                   (editingRecord.type==='chat' && view==='chat');
+    if(!stillEditingThisView) editingRecord = null;
+  }
   state.view = view;
   render();
   window.scrollTo(0,0);
@@ -834,7 +923,7 @@ function renderDashboard(){
           <td class="mono">${e.quantity ?? '—'}</td>
           <td>${fmtDate(e.date)}</td>
           <td>${e.responsible||'—'}</td>
-          <td><button class="del-btn" onclick="confirmDeleteEvent('${e.id}')" title="حذف">✕</button></td>
+          <td><button class="row-menu-btn" onclick="showRowActions(event,'event','${e.id}')" title="گزینه‌ها">⋮</button></td>
         </tr>`).join('')}
         </tbody></table>`
       }
@@ -930,7 +1019,7 @@ function renderLookupResult(summary){
             <td>${fmtDate(e.date)}</td>
             <td class="mono">${e.quantity ?? (e.approvedQty!=null ? `${e.approvedQty}/${e.rejectedQty}`:'—')}</td>
             <td>${eventDetailText(e)}</td>
-            <td><button class="del-btn" onclick="confirmDeleteEvent('${e.id}')" title="حذف">✕</button></td>
+            <td><button class="row-menu-btn" onclick="showRowActions(event,'event','${e.id}')" title="گزینه‌ها">⋮</button></td>
           </tr>
         `).join('')}
         </tbody>
@@ -1011,6 +1100,7 @@ function renderChat(){
   setLastSeenChat(Date.now());
   const msgs = [...DB.chat].sort((a,b)=>a.createdAt-b.createdAt);
   const mine = getMyIdentity();
+  const ed = isEditing('chat') ? editingRecord.data : null;
   return `
     <div class="topbar"><div><h1>چت تیم</h1><p>پیام‌های سریع و هماهنگی بین اعضای تیم (مثلاً سفارش از کارخانه)</p></div></div>
     <div class="card chat-card">
@@ -1021,16 +1111,17 @@ function renderChat(){
               <div class="chat-msg-head">
                 <span class="chat-sender">${escapeHtml(m.sender)}</span>
                 <span class="chat-time">${fmtDateTime(m.createdAt)}</span>
-                <button class="del-btn" onclick="confirmDeleteChat('${m.id}')" title="حذف">✕</button>
+                <button class="row-menu-btn" onclick="showRowActions(event,'chat','${m.id}')" title="گزینه‌ها">⋮</button>
               </div>
               <div class="chat-msg-body">${escapeHtml(m.text)}</div>
             </div>
           `).join('')
         }
       </div>
+      ${ed ? `<div class="edit-banner"><span>✏️ در حال ویرایش این پیام</span><button onclick="cancelEdit()">لغو ویرایش</button></div>` : ''}
       <div class="chat-input-row">
-        <input id="chatInput" type="text" placeholder="پیام بنویس…" onkeydown="if(event.key==='Enter'){submitChatMessage();}">
-        <button class="btn-primary" onclick="submitChatMessage()">ارسال</button>
+        <input id="chatInput" type="text" placeholder="پیام بنویس…" value="${ed?escapeHtml(ed.text):''}" onkeydown="if(event.key==='Enter'){submitChatMessage();}">
+        <button class="btn-primary" onclick="submitChatMessage()">${ed?'ذخیره':'ارسال'}</button>
       </div>
     </div>
   `;
@@ -1039,6 +1130,19 @@ async function submitChatMessage(){
   const inp = document.getElementById('chatInput');
   const text = inp.value.trim();
   if(!text) return;
+
+  if(isEditing('chat')){
+    const m = DB.chat.find(x=>x.id===editingRecord.id);
+    if(!m){ showToast('این پیام دیگر پیدا نشد', true); editingRecord=null; navigate('chat'); return; }
+    m.text = text;
+    inp.value = '';
+    const ok = await storageSet(KEYS.chat, DB.chat);
+    editingRecord = null;
+    if(!ok) showToast('خطا در ذخیره‌سازی', true);
+    render();
+    return;
+  }
+
   const sender = getMyIdentity();
   if(!sender){ showToast('ابتدا خودتان را معرفی کنید', true); openIdentityModal(false); return; }
   inp.value = '';
@@ -1054,29 +1158,31 @@ async function confirmDeleteChat(id){
 /* ============================ RENDER: RECEIVING FORM ============================ */
 function renderReceiving(){
   const log = [...DB.receiving].sort((a,b)=>b.createdAt-a.createdAt).slice(0,10);
+  const ed = isEditing('receiving') ? editingRecord.data : null;
   return `
     <div class="topbar"><div><h1>دریافت از کارخونه</h1><p>ثبت جنسی که از کارخونه وارد انبار می‌شود (هنوز بارکد ندارد)</p></div></div>
     <div class="card">
+      ${ed ? `<div class="edit-banner"><span>✏️ در حال ویرایش این رکورد هستید</span><button onclick="cancelEdit()">لغو ویرایش</button></div>` : ''}
       <form id="frmReceiving" class="form-grid">
-        <div class="field"><label>نوع / کد محصول</label><input type="text" name="productType" required></div>
-        <div class="field"><label>تعداد دریافتی</label><input type="number" name="quantity" min="1" required></div>
-        <div class="field"><label>تاریخ دریافت</label><input type="date" name="date" required></div>
-        <div class="field"><label>توضیحات (اختیاری)</label><input type="text" name="note"></div>
+        <div class="field"><label>نوع / کد محصول</label><input type="text" name="productType" value="${ed?escapeHtml(ed.productType):''}" required></div>
+        <div class="field"><label>تعداد دریافتی</label><input type="number" name="quantity" min="1" value="${ed?ed.quantity:''}" required></div>
+        <div class="field"><label>تاریخ دریافت</label><input type="date" name="date" value="${ed?ed.date:''}" required></div>
+        <div class="field"><label>توضیحات (اختیاری)</label><input type="text" name="note" value="${ed?escapeHtml(ed.note||''):''}"></div>
         <div class="field">
           <label>عکس طرح/دیزاین (اختیاری)</label>
           <input type="file" accept="image/*" capture="environment" id="designPhotoInput" onchange="previewDesignPhoto()">
           <div class="hint">با دوربین بگیر یا از گالری انتخاب کن. این عکس با همین «کد محصول» ذخیره می‌شود و بعداً در پیگیری بارکد با همین کد قابل دیدن است.</div>
           <img id="designPhotoPreview" class="design-photo-preview" style="display:none; margin-top:8px;">
         </div>
-        ${responsibleFieldHtml()}
+        ${responsibleFieldHtml(ed?ed.responsible:null)}
       </form>
-      <div class="form-actions"><button class="btn-primary" onclick="submitReceiving()">ثبت دریافت</button></div>
+      <div class="form-actions"><button class="btn-primary" onclick="submitReceiving()">${ed?'ذخیره تغییرات':'ثبت دریافت'}</button></div>
     </div>
     <div class="card">
       <h2 class="sec-title"><span class="bar"></span>آخرین موارد ثبت‌شده</h2>
       ${log.length===0 ? `<div class="empty-state">هنوز چیزی ثبت نشده</div>` :
         `<table><thead><tr><th>نوع محصول</th><th>تعداد</th><th>تاریخ</th><th>توضیحات</th><th>مسئول</th><th>تحویل</th><th></th></tr></thead><tbody>
-        ${log.map(r=>`<tr><td>${r.productType} ${r.hasPhoto?'<span title="عکس طرح ثبت شده">📷</span>':''}</td><td class="mono">${r.quantity}</td><td>${fmtDate(r.date)}</td><td>${r.note||'—'}</td><td>${r.responsible||'—'}</td><td><button class="confirm-btn ${r.confirmed?'yes':'no'}" onclick="toggleReceivingConfirmed('${r.id}')" title="تحویل گرفته شد؟ برای تغییر بزن">${r.confirmed?'✅':'❌'}</button></td><td><button class="del-btn" onclick="confirmDeleteReceiving('${r.id}')" title="حذف">✕</button></td></tr>`).join('')}
+        ${log.map(r=>`<tr><td>${r.productType} ${r.hasPhoto?'<span title="عکس طرح ثبت شده">📷</span>':''}</td><td class="mono">${r.quantity}</td><td>${fmtDate(r.date)}</td><td>${r.note||'—'}</td><td>${r.responsible||'—'}</td><td><button class="confirm-btn ${r.confirmed?'yes':'no'}" onclick="toggleReceivingConfirmed('${r.id}')" title="تحویل گرفته شد؟ برای تغییر بزن">${r.confirmed?'✅':'❌'}</button></td><td><button class="row-menu-btn" onclick="showRowActions(event,'receiving','${r.id}')" title="گزینه‌ها">⋮</button></td></tr>`).join('')}
         </tbody></table>`}
     </div>
   `;
@@ -1115,6 +1221,21 @@ async function submitReceiving(){
   const note = f.note.value.trim();
   const responsible = f.responsible.value;
   if(!productType || !quantity || !date || !responsible){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
+
+  if(isEditing('receiving')){
+    const rec = DB.receiving.find(r=>r.id===editingRecord.id);
+    if(!rec){ showToast('این رکورد دیگر پیدا نشد', true); editingRecord=null; navigate('receiving'); return; }
+    rec.productType = productType; rec.quantity = Number(quantity); rec.date = date; rec.note = note; rec.responsible = responsible;
+    if(pendingDesignPhotoDataUrl){ rec.hasPhoto = true; }
+    const ok = await storageSet(KEYS.receiving, DB.receiving);
+    if(ok && pendingDesignPhotoDataUrl){ await saveDesignPhoto(productType, pendingDesignPhotoDataUrl); }
+    pendingDesignPhotoDataUrl = null;
+    editingRecord = null;
+    if(ok){ showToast('ویرایش ذخیره شد'); navigate('receiving'); }
+    else showToast('خطا در ذخیره‌سازی', true);
+    return;
+  }
+
   const rec = { id:uid(), productType, quantity:Number(quantity), date, note, responsible, confirmed:false, hasPhoto:!!pendingDesignPhotoDataUrl, createdAt:Date.now() };
   const ok = await addReceiving(rec);
   if(ok && pendingDesignPhotoDataUrl){
@@ -1127,28 +1248,30 @@ async function submitReceiving(){
 
 /* ============================ RENDER: SEND TO NEGINKAR ============================ */
 function renderSendNeginkar(){
+  const ed = isEditing('event','send_neginkar') ? editingRecord.data : null;
   return `
     <div class="topbar"><div><h1>ارسال به خیاط</h1><p>هر بار که جنس برای خیاطی ارسال می‌شود، اینجا ثبت کنید</p></div></div>
     <div class="card">
+      ${ed ? `<div class="edit-banner"><span>✏️ در حال ویرایش این رکورد هستید (دور ${ed.round})</span><button onclick="cancelEdit()">لغو ویرایش</button></div>` : ''}
       <form id="frmSendNk" class="form-grid">
-        <div class="field"><label>بارکد آیتم</label><input type="text" name="barcode" class="mono-field" required></div>
+        <div class="field"><label>بارکد آیتم</label><input type="text" name="barcode" class="mono-field" value="${ed?escapeHtml(ed.barcode):''}" required></div>
         <div class="field">
           <label>خیاط</label>
           <select name="neginKar" id="nkSelect" required>
             <option value="">— انتخاب کنید —</option>
-            ${DB.neginkars.map(n=>`<option value="${n}">${n}</option>`).join('')}
+            ${DB.neginkars.map(n=>`<option value="${n}" ${ed&&n===ed.neginKar?'selected':''}>${n}</option>`).join('')}
           </select>
           <div class="add-inline">
             <input type="text" id="newNkName" placeholder="خیاط جدید…">
             <button type="button" onclick="quickAddNeginkar()">افزودن</button>
           </div>
         </div>
-        <div class="field"><label>تعداد ارسالی</label><input type="number" name="quantity" min="1" required></div>
-        <div class="field"><label>تاریخ ارسال</label><input type="date" name="date" required></div>
-        ${responsibleFieldHtml()}
+        <div class="field"><label>تعداد ارسالی</label><input type="number" name="quantity" min="1" value="${ed?ed.quantity:''}" required></div>
+        <div class="field"><label>تاریخ ارسال</label><input type="date" name="date" value="${ed?ed.date:''}" required></div>
+        ${responsibleFieldHtml(ed?ed.responsible:null)}
       </form>
       <div id="sendNkRoundHint" class="lookup-box" style="display:none;"></div>
-      <div class="form-actions"><button class="btn-primary" onclick="submitSendNeginkar()">ثبت ارسال</button></div>
+      <div class="form-actions"><button class="btn-primary" onclick="submitSendNeginkar()">${ed?'ذخیره تغییرات':'ثبت ارسال'}</button></div>
     </div>
   `;
 }
@@ -1172,8 +1295,8 @@ function quickAddTeamMember(){
   if(!name) return;
   addTeamMember(name).then(()=>{ inp.value=''; addOptionToSelect('responsible', name); showToast(`«${name}» اضافه شد`); });
 }
-function responsibleFieldHtml(){
-  const mine = getMyIdentity();
+function responsibleFieldHtml(overrideValue){
+  const mine = overrideValue || getMyIdentity();
   return `
     <div class="field">
       <label>مسئول (کسی که این مرحله را انجام داد)</label>
@@ -1260,6 +1383,18 @@ async function submitSendNeginkar(){
   const date = f.date.value;
   const responsible = f.responsible.value;
   if(!barcode || !neginKar || !quantity || !date || !responsible){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
+
+  if(isEditing('event','send_neginkar')){
+    const ev2 = DB.events.find(e=>e.id===editingRecord.id);
+    if(!ev2){ showToast('این رویداد دیگر پیدا نشد', true); editingRecord=null; navigate('send_neginkar'); return; }
+    ev2.barcode = barcode; ev2.neginKar = neginKar; ev2.quantity = Number(quantity); ev2.date = date; ev2.responsible = responsible;
+    const ok = await storageSet(KEYS.events, DB.events);
+    editingRecord = null;
+    if(ok){ showToast('ویرایش ذخیره شد'); navigate('send_neginkar'); }
+    else showToast('خطا در ذخیره‌سازی', true);
+    return;
+  }
+
   const round = nextRound(barcode);
   const ev = { id:uid(), barcode, stage:'send_neginkar', round, neginKar, quantity:Number(quantity), date, responsible, createdAt:Date.now() };
   const ok = await addEvent(ev);
@@ -1269,17 +1404,19 @@ async function submitSendNeginkar(){
 
 /* ============================ RENDER: RETURN FROM NEGINKAR ============================ */
 function renderReturnNeginkar(){
+  const ed = isEditing('event','return_neginkar') ? editingRecord.data : null;
   return `
     <div class="topbar"><div><h1>برگشت از خیاط</h1><p>وقتی جنس از خیاط برمی‌گردد، تعداد را اینجا ثبت کنید</p></div></div>
     <div class="card">
+      ${ed ? `<div class="edit-banner"><span>✏️ در حال ویرایش این رکورد هستید (دور ${ed.round})</span><button onclick="cancelEdit()">لغو ویرایش</button></div>` : ''}
       <form id="frmRetNk" class="form-grid">
-        <div class="field"><label>بارکد آیتم</label><input type="text" name="barcode" class="mono-field" required></div>
-        <div class="field"><label>تعداد برگشتی</label><input type="number" name="quantity" min="0" required></div>
-        <div class="field"><label>تاریخ برگشت</label><input type="date" name="date" required></div>
-        ${responsibleFieldHtml()}
+        <div class="field"><label>بارکد آیتم</label><input type="text" name="barcode" class="mono-field" value="${ed?escapeHtml(ed.barcode):''}" required></div>
+        <div class="field"><label>تعداد برگشتی</label><input type="number" name="quantity" min="0" value="${ed?ed.quantity:''}" required></div>
+        <div class="field"><label>تاریخ برگشت</label><input type="date" name="date" value="${ed?ed.date:''}" required></div>
+        ${responsibleFieldHtml(ed?ed.responsible:null)}
       </form>
       <div id="retNkHint" class="lookup-box" style="display:none;"></div>
-      <div class="form-actions"><button class="btn-primary" onclick="submitReturnNeginkar()">ثبت برگشت</button></div>
+      <div class="form-actions"><button class="btn-primary" onclick="submitReturnNeginkar()">${ed?'ذخیره تغییرات':'ثبت برگشت'}</button></div>
     </div>
   `;
 }
@@ -1305,6 +1442,18 @@ async function submitReturnNeginkar(){
   const date = f.date.value;
   const responsible = f.responsible.value;
   if(!barcode || quantity==='' || !date || !responsible){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
+
+  if(isEditing('event','return_neginkar')){
+    const ev2 = DB.events.find(e=>e.id===editingRecord.id);
+    if(!ev2){ showToast('این رویداد دیگر پیدا نشد', true); editingRecord=null; navigate('return_neginkar'); return; }
+    ev2.barcode = barcode; ev2.quantity = Number(quantity); ev2.date = date; ev2.responsible = responsible;
+    const ok = await storageSet(KEYS.events, DB.events);
+    editingRecord = null;
+    if(ok){ showToast('ویرایش ذخیره شد'); navigate('return_neginkar'); }
+    else showToast('خطا در ذخیره‌سازی', true);
+    return;
+  }
+
   const round = maxRound(barcode);
   if(!round){ showToast('برای این بارکد هیچ ارسالی ثبت نشده است', true); return; }
   const ev = { id:uid(), barcode, stage:'return_neginkar', round, quantity:Number(quantity), date, responsible, createdAt:Date.now() };
@@ -1315,18 +1464,20 @@ async function submitReturnNeginkar(){
 
 /* ============================ RENDER: QC ============================ */
 function renderQc(){
+  const ed = isEditing('event','qc') ? editingRecord.data : null;
   return `
     <div class="topbar"><div><h1>کنترل کیفیت</h1><p>بررسی کیفیت جنس برگشتی از خیاط</p></div></div>
     <div class="card">
+      ${ed ? `<div class="edit-banner"><span>✏️ در حال ویرایش این رکورد هستید (دور ${ed.round})</span><button onclick="cancelEdit()">لغو ویرایش</button></div>` : ''}
       <form id="frmQc" class="form-grid">
-        <div class="field"><label>بارکد آیتم</label><input type="text" name="barcode" class="mono-field" required></div>
-        <div class="field"><label>تعداد تایید‌شده</label><input type="number" name="approvedQty" min="0" required></div>
-        <div class="field"><label>تعداد رد‌شده</label><input type="number" name="rejectedQty" min="0" required></div>
-        <div class="field"><label>توضیح ایراد (اگر رد شده)</label><input type="text" name="defectNote"></div>
-        ${responsibleFieldHtml()}
+        <div class="field"><label>بارکد آیتم</label><input type="text" name="barcode" class="mono-field" value="${ed?escapeHtml(ed.barcode):''}" required></div>
+        <div class="field"><label>تعداد تایید‌شده</label><input type="number" name="approvedQty" min="0" value="${ed?ed.approvedQty:''}" required></div>
+        <div class="field"><label>تعداد رد‌شده</label><input type="number" name="rejectedQty" min="0" value="${ed?ed.rejectedQty:''}" required></div>
+        <div class="field"><label>توضیح ایراد (اگر رد شده)</label><input type="text" name="defectNote" value="${ed?escapeHtml(ed.defectNote||''):''}"></div>
+        ${responsibleFieldHtml(ed?ed.responsible:null)}
       </form>
       <div id="qcHint" class="lookup-box" style="display:none;"></div>
-      <div class="form-actions"><button class="btn-primary" onclick="submitQc()">ثبت نتیجه</button></div>
+      <div class="form-actions"><button class="btn-primary" onclick="submitQc()">${ed?'ذخیره تغییرات':'ثبت نتیجه'}</button></div>
     </div>
   `;
 }
@@ -1353,6 +1504,19 @@ async function submitQc(){
   const defectNote = f.defectNote.value.trim();
   const responsible = f.responsible.value;
   if(!barcode || approvedQty==='' || rejectedQty==='' || !responsible){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
+
+  if(isEditing('event','qc')){
+    const ev2 = DB.events.find(e=>e.id===editingRecord.id);
+    if(!ev2){ showToast('این رویداد دیگر پیدا نشد', true); editingRecord=null; navigate('qc'); return; }
+    ev2.barcode = barcode; ev2.approvedQty = Number(approvedQty); ev2.rejectedQty = Number(rejectedQty);
+    ev2.defectNote = defectNote; ev2.responsible = responsible; ev2.result = Number(rejectedQty)>0 ? 'rejected':'approved';
+    const ok = await storageSet(KEYS.events, DB.events);
+    editingRecord = null;
+    if(ok){ showToast('ویرایش ذخیره شد'); navigate('qc'); }
+    else showToast('خطا در ذخیره‌سازی', true);
+    return;
+  }
+
   const round = maxRound(barcode);
   if(!round){ showToast('برای این بارکد سابقه ارسال یافت نشد', true); return; }
   const result = Number(rejectedQty) > 0 && Number(approvedQty)===0 ? 'rejected' : (Number(rejectedQty) > 0 ? 'partial' : 'approved');
@@ -1365,23 +1529,25 @@ async function submitQc(){
 /* ============================ RENDER: SEND TO SHOP ============================ */
 function renderSendFactory(){
   const log = DB.events.filter(e=>e.stage==='send_factory').sort((a,b)=>b.createdAt-a.createdAt).slice(0,10);
+  const ed = isEditing('event','send_factory') ? editingRecord.data : null;
   return `
     <div class="topbar"><div><h1>ارسال به کارخانه</h1><p>وقتی جنسی به‌خاطر ایراد (مثلاً نگین خورده) باید به کارخانه برگردونده شود، اینجا ثبت کنید. این مرحله مستقل از QC است و هر وقت لازم باشد قابل استفاده است.</p></div></div>
     <div class="card">
+      ${ed ? `<div class="edit-banner"><span>✏️ در حال ویرایش این رکورد هستید</span><button onclick="cancelEdit()">لغو ویرایش</button></div>` : ''}
       <form id="frmSendFactory" class="form-grid">
-        <div class="field"><label>بارکد آیتم</label><input type="text" name="barcode" class="mono-field" required></div>
-        <div class="field"><label>تعداد ارسالی</label><input type="number" name="quantity" min="1" required></div>
-        <div class="field"><label>تاریخ ارسال</label><input type="date" name="date" required></div>
-        <div class="field"><label>دلیل برگشت (برای اطلاع کارخانه)</label><input type="text" name="reason" placeholder="مثلاً: نگین خورده" required></div>
-        ${responsibleFieldHtml()}
+        <div class="field"><label>بارکد آیتم</label><input type="text" name="barcode" class="mono-field" value="${ed?escapeHtml(ed.barcode):''}" required></div>
+        <div class="field"><label>تعداد ارسالی</label><input type="number" name="quantity" min="1" value="${ed?ed.quantity:''}" required></div>
+        <div class="field"><label>تاریخ ارسال</label><input type="date" name="date" value="${ed?ed.date:''}" required></div>
+        <div class="field"><label>دلیل برگشت (برای اطلاع کارخانه)</label><input type="text" name="reason" placeholder="مثلاً: نگین خورده" value="${ed?escapeHtml(ed.reason||''):''}" required></div>
+        ${responsibleFieldHtml(ed?ed.responsible:null)}
       </form>
-      <div class="form-actions"><button class="btn-primary" onclick="submitSendFactory()">ثبت ارسال به کارخانه</button></div>
+      <div class="form-actions"><button class="btn-primary" onclick="submitSendFactory()">${ed?'ذخیره تغییرات':'ثبت ارسال به کارخانه'}</button></div>
     </div>
     <div class="card">
       <h2 class="sec-title"><span class="bar"></span>آخرین موارد ارسال‌شده به کارخانه</h2>
       ${log.length===0 ? `<div class="empty-state">هنوز چیزی ثبت نشده</div>` :
         `<table><thead><tr><th>بارکد</th><th>تعداد</th><th>تاریخ</th><th>دلیل</th><th>مسئول</th><th>تحویل</th><th></th></tr></thead><tbody>
-        ${log.map(e=>`<tr><td><span class="barcode-chip mono">${e.barcode}</span></td><td class="mono">${e.quantity}</td><td>${fmtDate(e.date)}</td><td>${e.reason||'—'}</td><td>${e.responsible||'—'}</td><td><button class="confirm-btn ${e.confirmed?'yes':'no'}" onclick="toggleFactoryConfirmed('${e.id}')" title="تحویل گرفته شد؟ برای تغییر بزن">${e.confirmed?'✅':'❌'}</button></td><td><button class="del-btn" onclick="confirmDeleteEvent('${e.id}')" title="حذف">✕</button></td></tr>`).join('')}
+        ${log.map(e=>`<tr><td><span class="barcode-chip mono">${e.barcode}</span></td><td class="mono">${e.quantity}</td><td>${fmtDate(e.date)}</td><td>${e.reason||'—'}</td><td>${e.responsible||'—'}</td><td><button class="confirm-btn ${e.confirmed?'yes':'no'}" onclick="toggleFactoryConfirmed('${e.id}')" title="تحویل گرفته شد؟ برای تغییر بزن">${e.confirmed?'✅':'❌'}</button></td><td><button class="row-menu-btn" onclick="showRowActions(event,'event','${e.id}')" title="گزینه‌ها">⋮</button></td></tr>`).join('')}
         </tbody></table>`}
     </div>
   `;
@@ -1394,6 +1560,18 @@ async function submitSendFactory(){
   const reason = f.reason.value.trim();
   const responsible = f.responsible.value;
   if(!barcode || !quantity || !date || !reason || !responsible){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
+
+  if(isEditing('event','send_factory')){
+    const ev2 = DB.events.find(e=>e.id===editingRecord.id);
+    if(!ev2){ showToast('این رویداد دیگر پیدا نشد', true); editingRecord=null; navigate('send_factory'); return; }
+    ev2.barcode = barcode; ev2.quantity = Number(quantity); ev2.date = date; ev2.reason = reason; ev2.responsible = responsible;
+    const ok = await storageSet(KEYS.events, DB.events);
+    editingRecord = null;
+    if(ok){ showToast('ویرایش ذخیره شد'); navigate('send_factory'); }
+    else showToast('خطا در ذخیره‌سازی', true);
+    return;
+  }
+
   const ev = { id:uid(), barcode, stage:'send_factory', quantity:Number(quantity), date, reason, responsible, confirmed:false, createdAt:Date.now() };
   const ok = await addEvent(ev);
   if(ok){ showToast('ارسال به کارخانه ثبت شد'); navigate('send_factory'); }
@@ -1401,27 +1579,29 @@ async function submitSendFactory(){
 }
 
 function renderSendShop(){
+  const ed = isEditing('event','send_shop') ? editingRecord.data : null;
   return `
     <div class="topbar"><div><h1>ارسال به مغازه</h1><p>پس از تایید کیفیت، جنس به مغازه ارسال می‌شود</p></div></div>
     <div class="card">
+      ${ed ? `<div class="edit-banner"><span>✏️ در حال ویرایش این رکورد هستید</span><button onclick="cancelEdit()">لغو ویرایش</button></div>` : ''}
       <form id="frmSendShop" class="form-grid">
-        <div class="field"><label>بارکد آیتم</label><input type="text" name="barcode" class="mono-field" required></div>
+        <div class="field"><label>بارکد آیتم</label><input type="text" name="barcode" class="mono-field" value="${ed?escapeHtml(ed.barcode):''}" required></div>
         <div class="field">
           <label>مغازه</label>
           <select name="shop" required>
             <option value="">— انتخاب کنید —</option>
-            ${DB.shops.map(s=>`<option value="${s}">${s}</option>`).join('')}
+            ${DB.shops.map(s=>`<option value="${s}" ${ed&&s===ed.shop?'selected':''}>${s}</option>`).join('')}
           </select>
           <div class="add-inline">
             <input type="text" id="newShopName" placeholder="مغازه جدید…">
             <button type="button" onclick="quickAddShop()">افزودن</button>
           </div>
         </div>
-        <div class="field"><label>تعداد ارسالی</label><input type="number" name="quantity" min="1" required></div>
-        <div class="field"><label>تاریخ ارسال</label><input type="date" name="date" required></div>
-        ${responsibleFieldHtml()}
+        <div class="field"><label>تعداد ارسالی</label><input type="number" name="quantity" min="1" value="${ed?ed.quantity:''}" required></div>
+        <div class="field"><label>تاریخ ارسال</label><input type="date" name="date" value="${ed?ed.date:''}" required></div>
+        ${responsibleFieldHtml(ed?ed.responsible:null)}
       </form>
-      <div class="form-actions"><button class="btn-primary" onclick="submitSendShop()">ثبت ارسال</button></div>
+      <div class="form-actions"><button class="btn-primary" onclick="submitSendShop()">${ed?'ذخیره تغییرات':'ثبت ارسال'}</button></div>
     </div>
   `;
 }
@@ -1439,6 +1619,18 @@ async function submitSendShop(){
   const date = f.date.value;
   const responsible = f.responsible.value;
   if(!barcode || !shop || !quantity || !date || !responsible){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
+
+  if(isEditing('event','send_shop')){
+    const ev2 = DB.events.find(e=>e.id===editingRecord.id);
+    if(!ev2){ showToast('این رویداد دیگر پیدا نشد', true); editingRecord=null; navigate('send_shop'); return; }
+    ev2.barcode = barcode; ev2.shop = shop; ev2.quantity = Number(quantity); ev2.date = date; ev2.responsible = responsible;
+    const ok = await storageSet(KEYS.events, DB.events);
+    editingRecord = null;
+    if(ok){ showToast('ویرایش ذخیره شد'); navigate('send_shop'); }
+    else showToast('خطا در ذخیره‌سازی', true);
+    return;
+  }
+
   const ev = { id:uid(), barcode, stage:'send_shop', shop, quantity:Number(quantity), date, responsible, createdAt:Date.now() };
   const ok = await addEvent(ev);
   if(ok){ showToast('ارسال به مغازه ثبت شد'); navigate('send_shop'); }
@@ -1447,17 +1639,19 @@ async function submitSendShop(){
 
 /* ============================ RENDER: RECEIVE AT SHOP ============================ */
 function renderReceiveShop(){
+  const ed = isEditing('event','receive_shop') ? editingRecord.data : null;
   return `
     <div class="topbar"><div><h1>دریافت در مغازه</h1><p>تایید نهایی دریافت جنس در مغازه</p></div></div>
     <div class="card">
+      ${ed ? `<div class="edit-banner"><span>✏️ در حال ویرایش این رکورد هستید</span><button onclick="cancelEdit()">لغو ویرایش</button></div>` : ''}
       <form id="frmRecvShop" class="form-grid">
-        <div class="field"><label>بارکد آیتم</label><input type="text" name="barcode" class="mono-field" required></div>
-        <div class="field"><label>تعداد دریافتی</label><input type="number" name="quantity" min="0" required></div>
-        <div class="field"><label>تاریخ دریافت</label><input type="date" name="date" required></div>
-        ${responsibleFieldHtml()}
+        <div class="field"><label>بارکد آیتم</label><input type="text" name="barcode" class="mono-field" value="${ed?escapeHtml(ed.barcode):''}" required></div>
+        <div class="field"><label>تعداد دریافتی</label><input type="number" name="quantity" min="0" value="${ed?ed.quantity:''}" required></div>
+        <div class="field"><label>تاریخ دریافت</label><input type="date" name="date" value="${ed?ed.date:''}" required></div>
+        ${responsibleFieldHtml(ed?ed.responsible:null)}
       </form>
       <div id="recvShopHint" class="lookup-box" style="display:none;"></div>
-      <div class="form-actions"><button class="btn-primary" onclick="submitReceiveShop()">ثبت دریافت</button></div>
+      <div class="form-actions"><button class="btn-primary" onclick="submitReceiveShop()">${ed?'ذخیره تغییرات':'ثبت دریافت'}</button></div>
     </div>
   `;
 }
@@ -1482,6 +1676,18 @@ async function submitReceiveShop(){
   const date = f.date.value;
   const responsible = f.responsible.value;
   if(!barcode || quantity==='' || !date || !responsible){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
+
+  if(isEditing('event','receive_shop')){
+    const ev2 = DB.events.find(e=>e.id===editingRecord.id);
+    if(!ev2){ showToast('این رویداد دیگر پیدا نشد', true); editingRecord=null; navigate('receive_shop'); return; }
+    ev2.barcode = barcode; ev2.quantity = Number(quantity); ev2.date = date; ev2.responsible = responsible;
+    const ok = await storageSet(KEYS.events, DB.events);
+    editingRecord = null;
+    if(ok){ showToast('ویرایش ذخیره شد'); navigate('receive_shop'); }
+    else showToast('خطا در ذخیره‌سازی', true);
+    return;
+  }
+
   const ev = { id:uid(), barcode, stage:'receive_shop', quantity:Number(quantity), date, responsible, createdAt:Date.now() };
   const ok = await addEvent(ev);
   if(ok){ showToast('دریافت در مغازه ثبت شد'); navigate('receive_shop'); }
@@ -1556,6 +1762,10 @@ window.toggleReceivingConfirmed = toggleReceivingConfirmed;
 window.toggleFactoryConfirmed = toggleFactoryConfirmed;
 window.setReportMode = setReportMode;
 window.previewDesignPhoto = previewDesignPhoto;
+window.showRowActions = showRowActions;
+window.startEdit = startEdit;
+window.startDelete = startDelete;
+window.cancelEdit = cancelEdit;
 
 init();
 </script>
