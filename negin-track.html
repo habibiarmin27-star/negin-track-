@@ -207,6 +207,10 @@
     outline:none; border-color:var(--gold); box-shadow:0 0 0 3px rgba(199,154,60,0.18);
   }
   .field .hint{font-size:11.5px; color:var(--ink-soft); margin-top:5px;}
+  .design-photo-preview{
+    max-width:100%; max-height:280px; border-radius:10px; border:1px solid var(--line);
+    display:block; object-fit:cover;
+  }
   .field .hint.alert{color:var(--rose); font-weight:600;}
   .add-inline{display:flex; gap:8px; margin-top:8px;}
   .add-inline input{flex:1;}
@@ -424,6 +428,39 @@ async function deleteChatMessage(id){
   const filtered = DB.chat.filter(m=>m.id!==id);
   return storageSet(KEYS.chat, filtered);
 }
+
+/* ============================ DESIGN PHOTOS (stored per product/item code, separate small docs) ============================ */
+async function getDesignPhoto(code){
+  if(!code) return null;
+  return storageGet('design_' + code, null);
+}
+async function saveDesignPhoto(code, dataUrl){
+  return storageSet('design_' + code, dataUrl);
+}
+async function deleteDesignPhoto(code){
+  return storageSet('design_' + code, null);
+}
+function compressImageFile(file, maxWidth=700, quality=0.6){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = (e)=>{
+      const img = new Image();
+      img.onload = ()=>{
+        const scale = Math.min(1, maxWidth/img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width*scale);
+        canvas.height = Math.round(img.height*scale);
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 let chatListenerStarted = false;
 function startChatListener(){
   if(chatListenerStarted) return;
@@ -632,7 +669,7 @@ const ROUTES = [
   { key:'receive_shop', label:'دریافت در مغازه', ico:'⑥', group:'forms' },
 ];
 
-let state = { view:'dashboard', lookupBarcode:'' };
+let state = { view:'dashboard', lookupBarcode:'', lookupDesignPhoto:null };
 let reportMode = 'month';
 
 function showToast(msg, isError){
@@ -815,12 +852,23 @@ function quickSearchHtml(){
 }
 function quickSearchGo(){
   const v = document.getElementById('quickSearch').value.trim();
-  navigateLookup(v);
+  performLookup(v);
 }
 function navigateLookup(bc){
+  performLookup(bc);
+}
+async function performLookup(bc){
   state.lookupBarcode = bc;
   state.view = 'lookup';
+  state.lookupDesignPhoto = null;
   render();
+  if(bc){
+    const photo = await getDesignPhoto(bc);
+    if(state.lookupBarcode === bc){
+      state.lookupDesignPhoto = photo;
+      if(state.view==='lookup') render();
+    }
+  }
 }
 
 /* ============================ RENDER: LOOKUP ============================ */
@@ -833,17 +881,26 @@ function renderLookup(){
     </div>
     <div class="card">
       <div class="search-box" style="max-width:420px;">
-        <input id="lookupInput" type="text" placeholder="بارکد را وارد کنید…" value="${bc}" class="mono">
+        <input id="lookupInput" type="text" placeholder="بارکد یا کد محصول را وارد کنید…" value="${bc}" class="mono">
         <button class="go" onclick="doLookup()">پیگیری</button>
       </div>
     </div>
+    ${bc ? renderDesignPhotoBlock() : ''}
     ${bc ? renderLookupResult(summary) : `<div class="card"><div class="empty-state">یک بارکد وارد کنید تا مسیر آن نمایش داده شود</div></div>`}
+  `;
+}
+function renderDesignPhotoBlock(){
+  if(!state.lookupDesignPhoto) return '';
+  return `
+    <div class="card">
+      <h2 class="sec-title"><span class="bar"></span>عکس طرح/دیزاین</h2>
+      <img src="${state.lookupDesignPhoto}" class="design-photo-preview" alt="عکس طرح">
+    </div>
   `;
 }
 function doLookup(){
   const v = document.getElementById('lookupInput').value.trim();
-  state.lookupBarcode = v;
-  render();
+  performLookup(v);
 }
 function renderLookupResult(summary){
   if(!summary || summary.evs.length===0){
@@ -1005,6 +1062,12 @@ function renderReceiving(){
         <div class="field"><label>تعداد دریافتی</label><input type="number" name="quantity" min="1" required></div>
         <div class="field"><label>تاریخ دریافت</label><input type="date" name="date" required></div>
         <div class="field"><label>توضیحات (اختیاری)</label><input type="text" name="note"></div>
+        <div class="field">
+          <label>عکس طرح/دیزاین (اختیاری)</label>
+          <input type="file" accept="image/*" capture="environment" id="designPhotoInput" onchange="previewDesignPhoto()">
+          <div class="hint">با دوربین بگیر یا از گالری انتخاب کن. این عکس با همین «کد محصول» ذخیره می‌شود و بعداً در پیگیری بارکد با همین کد قابل دیدن است.</div>
+          <img id="designPhotoPreview" class="design-photo-preview" style="display:none; margin-top:8px;">
+        </div>
         ${responsibleFieldHtml()}
       </form>
       <div class="form-actions"><button class="btn-primary" onclick="submitReceiving()">ثبت دریافت</button></div>
@@ -1013,10 +1076,23 @@ function renderReceiving(){
       <h2 class="sec-title"><span class="bar"></span>آخرین موارد ثبت‌شده</h2>
       ${log.length===0 ? `<div class="empty-state">هنوز چیزی ثبت نشده</div>` :
         `<table><thead><tr><th>نوع محصول</th><th>تعداد</th><th>تاریخ</th><th>توضیحات</th><th>مسئول</th><th>تحویل</th><th></th></tr></thead><tbody>
-        ${log.map(r=>`<tr><td>${r.productType}</td><td class="mono">${r.quantity}</td><td>${fmtDate(r.date)}</td><td>${r.note||'—'}</td><td>${r.responsible||'—'}</td><td><button class="confirm-btn ${r.confirmed?'yes':'no'}" onclick="toggleReceivingConfirmed('${r.id}')" title="تحویل گرفته شد؟ برای تغییر بزن">${r.confirmed?'✅':'❌'}</button></td><td><button class="del-btn" onclick="confirmDeleteReceiving('${r.id}')" title="حذف">✕</button></td></tr>`).join('')}
+        ${log.map(r=>`<tr><td>${r.productType} ${r.hasPhoto?'<span title="عکس طرح ثبت شده">📷</span>':''}</td><td class="mono">${r.quantity}</td><td>${fmtDate(r.date)}</td><td>${r.note||'—'}</td><td>${r.responsible||'—'}</td><td><button class="confirm-btn ${r.confirmed?'yes':'no'}" onclick="toggleReceivingConfirmed('${r.id}')" title="تحویل گرفته شد؟ برای تغییر بزن">${r.confirmed?'✅':'❌'}</button></td><td><button class="del-btn" onclick="confirmDeleteReceiving('${r.id}')" title="حذف">✕</button></td></tr>`).join('')}
         </tbody></table>`}
     </div>
   `;
+}
+let pendingDesignPhotoDataUrl = null;
+async function previewDesignPhoto(){
+  const inp = document.getElementById('designPhotoInput');
+  const file = inp.files && inp.files[0];
+  if(!file) return;
+  try{
+    const dataUrl = await compressImageFile(file);
+    pendingDesignPhotoDataUrl = dataUrl;
+    const img = document.getElementById('designPhotoPreview');
+    img.src = dataUrl;
+    img.style.display = 'block';
+  }catch(e){ showToast('خطا در خوندن عکس', true); }
 }
 async function confirmDeleteReceiving(id){
   if(!confirm('این مورد حذف شود؟ این کار قابل بازگشت نیست.')) return;
@@ -1039,8 +1115,12 @@ async function submitReceiving(){
   const note = f.note.value.trim();
   const responsible = f.responsible.value;
   if(!productType || !quantity || !date || !responsible){ showToast('لطفاً فیلدهای ضروری را پر کنید', true); return; }
-  const rec = { id:uid(), productType, quantity:Number(quantity), date, note, responsible, confirmed:false, createdAt:Date.now() };
+  const rec = { id:uid(), productType, quantity:Number(quantity), date, note, responsible, confirmed:false, hasPhoto:!!pendingDesignPhotoDataUrl, createdAt:Date.now() };
   const ok = await addReceiving(rec);
+  if(ok && pendingDesignPhotoDataUrl){
+    await saveDesignPhoto(productType, pendingDesignPhotoDataUrl);
+  }
+  pendingDesignPhotoDataUrl = null;
   if(ok){ showToast('دریافت با موفقیت ثبت شد'); navigate('receiving'); }
   else showToast('خطا در ذخیره‌سازی', true);
 }
@@ -1475,6 +1555,7 @@ window.confirmDeleteChat = confirmDeleteChat;
 window.toggleReceivingConfirmed = toggleReceivingConfirmed;
 window.toggleFactoryConfirmed = toggleFactoryConfirmed;
 window.setReportMode = setReportMode;
+window.previewDesignPhoto = previewDesignPhoto;
 
 init();
 </script>
