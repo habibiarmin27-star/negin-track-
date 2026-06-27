@@ -978,7 +978,7 @@ function journeyStripHtml(summary){
 function renderDashboard(){
   const stats = dashboardStats();
   const attn = needsAttention();
-  const recent = [...DB.events].sort((a,b)=> b.createdAt - a.createdAt).slice(0,8);
+  const recent = [...DB.events].sort((a,b)=> b.createdAt - a.createdAt).slice(0,30);
 
   return `
     <div class="topbar">
@@ -1257,7 +1257,7 @@ async function confirmDeleteChat(id){
 
 /* ============================ RENDER: RECEIVING FORM ============================ */
 function renderReceiving(){
-  const log = [...DB.receiving].sort((a,b)=>b.createdAt-a.createdAt).slice(0,10);
+  const log = [...DB.receiving].sort((a,b)=>b.createdAt-a.createdAt).slice(0,30);
   const ed = isEditing('receiving') ? editingRecord.data : null;
   return `
     <div class="topbar"><div><h1>دریافت از کارخونه</h1><p>ثبت جنسی که از کارخونه وارد انبار می‌شود (هنوز بارکد ندارد)</p></div></div>
@@ -1645,7 +1645,7 @@ async function submitQc(){
 
 /* ============================ RENDER: SEND TO SHOP ============================ */
 function renderSendFactory(){
-  const log = DB.events.filter(e=>e.stage==='send_factory').sort((a,b)=>b.createdAt-a.createdAt).slice(0,10);
+  const log = DB.events.filter(e=>e.stage==='send_factory').sort((a,b)=>b.createdAt-a.createdAt).slice(0,30);
   const ed = isEditing('event','send_factory') ? editingRecord.data : null;
   return `
     <div class="topbar"><div><h1>ارسال به کارخانه</h1><p>وقتی جنسی به‌خاطر ایراد (مثلاً نگین خورده) باید به کارخانه برگردونده شود، اینجا ثبت کنید. این مرحله مستقل از QC است و هر وقت لازم باشد قابل استفاده است.</p></div></div>
